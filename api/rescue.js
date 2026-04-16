@@ -1,28 +1,30 @@
 import { createPublicClient, http, parseAbi } from 'viem';
 import { mainnet } from 'viem/chains';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-const ALCHEMY_KEY      = process.env.ALCHEMY_KEY;
-const RPC_URL          = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`;
-const NFT_API_BASE     = `https://eth-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_KEY}`;
-const PINATA_PIN_URL   = 'https://api.pinata.cloud/v3/files/public/pin_by_cid';
+const ALCHEMY_KEY    = process.env.ALCHEMY_KEY;
+const RPC_URL        = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`;
+const NFT_API_BASE   = `https://eth-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_KEY}`;
+const PINATA_PIN_URL = 'https://api.pinata.cloud/v3/files/public/pin_by_cid';
 
-const FOUNDATION_MARKET     = '0xcDA72070E455bb31C7690a170224Ce43623d0B6f';
-const FOUNDATION_NFT721     = '0x3B3ee1931Dc30C1957379FAc9aba94D1C48a5405';
-const FOUNDATION_FACTORY_V1 = '0x3B612a5B49e025a6e4bA4eE4FB1EF46D13588059';
-const FOUNDATION_FACTORY_V2 = '0x612E2DadDc89d91409e40f946f9f7CfE422e777E';
-const KNOWN_FOUNDATION      = new Set([
-  FOUNDATION_NFT721.toLowerCase(),
-  FOUNDATION_FACTORY_V1.toLowerCase(),
-  FOUNDATION_FACTORY_V2.toLowerCase(),
-]);
+const FOUNDATION_MARKET  = '0xcDA72070E455bb31C7690a170224Ce43623d0B6f';
+const FOUNDATION_NFT721  = '0x3B3ee1931Dc30C1957379FAc9aba94D1C48a5405';
+
+// Load the complete set of Foundation collection contracts (95k addresses,
+// enumerated from Factory V1 + V2 creation events via Etherscan).
+// Loaded once at cold start, cached for the lifetime of the function instance.
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const _contractList = JSON.parse(
+  readFileSync(join(__dirname, '../foundation-contracts-list.json'), 'utf8')
+);
+const FOUNDATION_SET = new Set(_contractList.map(a => a.toLowerCase()));
+FOUNDATION_SET.add(FOUNDATION_NFT721.toLowerCase()); // shared early-mint contract
 
 const marketAbi = parseAbi([
   'function getBuyPrice(address nftContract, uint256 tokenId) view returns (address seller, uint256 price)',
   'function getReserveAuctionIdFor(address nftContract, uint256 tokenId) view returns (uint256 auctionId)',
-]);
-
-const nftAbi = parseAbi([
-  'function tokenURI(uint256 tokenId) view returns (string)',
 ]);
 
 function extractCID(uri) {
@@ -32,19 +34,6 @@ function extractCID(uri) {
   const gateway = uri.match(/\/ipfs\/([a-zA-Z0-9]+)/);
   if (gateway) return gateway[1];
   return null;
-}
-
-function isFoundation(nft) {
-  const addr = nft.contract?.address?.toLowerCase();
-  if (KNOWN_FOUNDATION.has(addr)) return true;
-  if (nft.raw?.metadata?.external_url?.includes('foundation.app')) return true;
-  if (nft.tokenUri?.includes('foundation')) return true;
-  // Individual collection contracts deployed via Foundation factory:
-  // metadata external_url points to foundation.app, or contract name references Foundation
-  if (nft.contract?.name?.toLowerCase().includes('foundation')) return true;
-  // Foundation-hosted metadata API (pre-IPFS era)
-  if (nft.raw?.metadata?.external_url?.includes('api.foundation.app')) return true;
-  return false;
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -61,66 +50,53 @@ async function fetchWithRetry(url, retries = 3) {
   }
 }
 
-const FOUNDATION_CONTRACTS = [
-  FOUNDATION_NFT721,
-  FOUNDATION_FACTORY_V1,
-  FOUNDATION_FACTORY_V2,
-];
-
-// Two-pass scan:
-// Pass 1 - known contracts filter (fast, catches shared-contract mints)
-// Pass 2 - unfiltered scan up to 500 NFTs (catches individual collection contracts)
-const MAX_UNFILTERED_SCAN = 500;
-
-async function fetchFoundationNFTs(wallet) {
-  const seen = new Set();
-  const nfts = [];
-
-  // Pass 1: known Foundation contracts - paginate fully, fast
+// Step 1: get unique contract addresses in wallet (lightweight - no NFT metadata)
+async function getWalletContracts(wallet) {
+  const contracts = [];
   let pageKey = null;
   do {
-    const url = new URL(`${NFT_API_BASE}/getNFTsForOwner`);
+    const url = new URL(`${NFT_API_BASE}/getContractsForOwner`);
     url.searchParams.set('owner', wallet);
-    url.searchParams.set('withMetadata', 'true');
+    url.searchParams.set('withMetadata', 'false');
     url.searchParams.set('pageSize', '100');
-    FOUNDATION_CONTRACTS.forEach(c => url.searchParams.append('contractAddresses[]', c));
     if (pageKey) url.searchParams.set('pageKey', pageKey);
-
     const json = await fetchWithRetry(url.toString());
-    for (const nft of json.ownedNfts || []) {
-      const key = `${nft.contract.address}-${nft.tokenId}`;
-      if (!seen.has(key)) { seen.add(key); nfts.push(nft); }
-    }
+    contracts.push(...(json.contracts || []));
     pageKey = json.pageKey;
   } while (pageKey);
+  return contracts;
+}
 
-  // Pass 2: unfiltered scan - catches individual Foundation collection contracts
-  let totalScanned = 0;
-  pageKey = null;
-  do {
-    const url = new URL(`${NFT_API_BASE}/getNFTsForOwner`);
-    url.searchParams.set('owner', wallet);
-    url.searchParams.set('withMetadata', 'true');
-    url.searchParams.set('pageSize', '100');
-    if (pageKey) url.searchParams.set('pageKey', pageKey);
+// Step 2: filter to Foundation contracts using the on-chain derived set
+function filterFoundation(contracts) {
+  return contracts
+    .map(c => c.address)
+    .filter(addr => FOUNDATION_SET.has(addr.toLowerCase()));
+}
 
-    const json = await fetchWithRetry(url.toString());
-    const batch = json.ownedNfts || [];
-    totalScanned += batch.length;
-
-    for (const nft of batch) {
-      const key = `${nft.contract.address}-${nft.tokenId}`;
-      if (!seen.has(key) && isFoundation(nft)) {
-        seen.add(key);
-        nfts.push(nft);
-      }
-    }
-
-    pageKey = totalScanned < MAX_UNFILTERED_SCAN ? json.pageKey : null;
-    if (pageKey) await sleep(150); // avoid rate limit between pages
-  } while (pageKey);
-
-  return { nfts, totalScanned };
+// Step 3: fetch NFTs for specific Foundation contracts only
+async function fetchNFTsForContracts(wallet, contractAddresses) {
+  if (contractAddresses.length === 0) return [];
+  const nfts = [];
+  // Alchemy accepts up to 45 contractAddresses[] per call
+  const CHUNK = 45;
+  for (let i = 0; i < contractAddresses.length; i += CHUNK) {
+    const chunk = contractAddresses.slice(i, i + CHUNK);
+    let pageKey = null;
+    do {
+      const url = new URL(`${NFT_API_BASE}/getNFTsForOwner`);
+      url.searchParams.set('owner', wallet);
+      url.searchParams.set('withMetadata', 'true');
+      url.searchParams.set('pageSize', '100');
+      chunk.forEach(c => url.searchParams.append('contractAddresses[]', c));
+      if (pageKey) url.searchParams.set('pageKey', pageKey);
+      const json = await fetchWithRetry(url.toString());
+      nfts.push(...(json.ownedNfts || []));
+      pageKey = json.pageKey;
+    } while (pageKey);
+    if (i + CHUNK < contractAddresses.length) await sleep(100);
+  }
+  return nfts;
 }
 
 async function pinCID(cid, name, pinataJwt) {
@@ -143,7 +119,6 @@ async function pinCID(cid, name, pinataJwt) {
 }
 
 export default async function handler(req, res) {
-  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -160,20 +135,24 @@ export default async function handler(req, res) {
   }
 
   const pinMode = !!pinataJwt;
-
   const publicClient = createPublicClient({ chain: mainnet, transport: http(RPC_URL) });
 
   try {
-    // 1. Find Foundation NFTs
-    const { nfts, totalScanned } = await fetchFoundationNFTs(wallet.toLowerCase());
-    const truncated = totalScanned >= MAX_NFTS_TO_SCAN;
+    // 1. Get all unique contracts in wallet (fast, no metadata)
+    const allContracts = await getWalletContracts(wallet.toLowerCase());
+
+    // 2. Filter to Foundation contracts using 95k on-chain derived set
+    const foundationContracts = filterFoundation(allContracts);
+
+    // 3. Fetch full NFT data only for Foundation contracts
+    const nfts = await fetchNFTsForContracts(wallet, foundationContracts);
 
     const pinned = [];
     const failed = [];
     const listings = [];
     const nftCards = [];
 
-    // 2. Process each NFT
+    // 4. Process each NFT
     await Promise.all(nfts.map(async (nft) => {
       const contractAddress = nft.contract.address;
       const tokenId = nft.tokenId;
@@ -240,15 +219,10 @@ export default async function handler(req, res) {
       nftCards.push({ name, imageUrl, hasIpfs, pinnedMeta, pinnedImage, isLocked, contractAddress, tokenId });
     }));
 
-    const truncatedNote = truncated
-      ? ` (large wallet - scanned first ${MAX_NFTS_TO_SCAN} NFTs; if you minted many collections, some may be missed)`
-      : '';
-
     return res.status(200).json({
       wallet,
       nftsFound: nfts.length,
-      totalScanned,
-      truncated,
+      foundationContracts: foundationContracts.length,
       pinned,
       failed,
       listings,
@@ -259,8 +233,8 @@ export default async function handler(req, res) {
         : pinned.length > 0
           ? `All ${pinned.length} CIDs pinned successfully. Your assets are safe.`
           : nfts.length > 0
-            ? `${nfts.length} Foundation NFT(s) found but no IPFS CIDs could be extracted - media may be HTTP-hosted or metadata unavailable.${truncatedNote}`
-            : `No Foundation NFTs found in this wallet.${truncatedNote}`,
+            ? `${nfts.length} Foundation NFT(s) found but no IPFS CIDs could be extracted - media may be HTTP-hosted or metadata unavailable.`
+            : 'No Foundation NFTs found in this wallet.',
     });
 
   } catch (e) {
