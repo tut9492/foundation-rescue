@@ -2,7 +2,7 @@
 
 **Marketplaces shutting down is not the end. It's the beginning of a renaissance.**
 
-With access to AI coding tools, digital artists can now control the full creation and curation experience end to end - without relying on an intermediary. Foundation closed its doors. Your token contracts are on-chain and permanent - but the art and metadata behind them lives on IPFS or Foundation's own servers, and that can disappear. What's missing is the infrastructure to preserve it and surface it on your own terms.
+With access to AI coding tools, artists can now build and own the full stack - creation, curation, distribution - without handing control to a platform that can disappear overnight. Foundation closed its doors. Your token contracts are on-chain and permanent - but the art and metadata behind them lives on IPFS or Foundation's own servers, and that can disappear. What's missing is infrastructure to preserve it, and a permanent home to surface it on your own terms.
 
 This repo is two things:
 
@@ -31,9 +31,9 @@ This repo is two things:
 
 Underpin is not a product. It's a starting point.
 
-The idea: artists and creatives should control their own curation, end to end. The tools exist now - AI, open-source smart contracts, IPFS, forkable frontends. There is no good reason for a third party to sit between an artist and their audience.
+Deploy your own contracts. Mint directly on-chain. Own your media, your storefront, your collector relationships end to end. No company behind it, no gatekeepers, no single point of failure. Built by the community, for the community.
 
-Underpin is here for all artists and creatives to take that curation into their own hands.
+Your token is on-chain. Your art doesn't have to be at risk. Underpin is the open source infrastructure to keep it that way.
 
 [See the vision →](https://foundation-rescue.vercel.app/underpin.html)
 
@@ -129,6 +129,6 @@ MIT - do whatever you want with it. See [LICENSE](LICENSE).
 
 ## Vision
 
-The next chapter for digital art isn't another platform. It's artists building their own platforms, together, on open infrastructure that nobody can shut down.
+The next chapter for digital art isn't another platform. It's artists deploying their own contracts, minting directly on-chain, owning their media and their collector relationships end to end - on open infrastructure that nobody can shut down.
 
-That's what this is for.
+The renaissance starts now. Fork it, run it, make it yours.
