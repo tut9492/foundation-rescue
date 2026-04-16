@@ -145,7 +145,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
-  const { wallet, pinataJwt, createdOnly } = req.body ?? {};
+  const { wallet, pinataJwt, createdOnly, contractOverride } = req.body ?? {};
 
   if (!wallet || !/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
     return res.status(400).json({ error: 'Invalid or missing wallet address' });
@@ -158,13 +158,16 @@ export default async function handler(req, res) {
   const publicClient = createPublicClient({ chain: mainnet, transport: http(RPC_URL) });
 
   try {
-    // 1. Get all unique contract addresses in wallet
-    const allAddresses = await getWalletContractAddresses(wallet.toLowerCase());
+    // 1. Get contract list - either from wallet scan or manual override
+    let foundationAddresses;
+    if (contractOverride && /^0x[a-fA-F0-9]{40}$/.test(contractOverride)) {
+      foundationAddresses = [contractOverride];
+    } else {
+      const allAddresses = await getWalletContractAddresses(wallet.toLowerCase());
+      foundationAddresses = filterFoundationAddresses(allAddresses);
+    }
 
-    // 2. Filter to Foundation contracts using 95k on-chain derived set
-    const foundationAddresses = filterFoundationAddresses(allAddresses);
-
-    // 3. Get deployer for each Foundation contract (created vs collected)
+    // 2. Get deployer for each contract (created vs collected)
     const deployers = await getContractDeployers(foundationAddresses);
     const foundationContracts = foundationAddresses.map(addr => ({
       address: addr,

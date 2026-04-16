@@ -412,6 +412,17 @@
 
     <div id="status"></div>
 
+    <div id="missingCard" style="display:none;" class="card">
+      <h2>Don't see your NFTs?</h2>
+      <p style="font-size:13px;line-height:1.6;margin-bottom:18px;">Two reasons this happens:<br><br>
+        <strong>1. Arweave metadata</strong> - some Foundation artists self-deployed their contracts and hosted metadata on Arweave, which is permanent. Those NFTs don't need rescuing.<br><br>
+        <strong>2. Self-deployed contract</strong> - if the artist deployed their own contract outside Foundation's factory, paste it below and we'll scan it directly.
+      </p>
+      <label for="customContract">Contract Address</label>
+      <input type="text" id="customContract" placeholder="0x..." spellcheck="false" />
+      <button onclick="runCustomScan()">Scan This Contract</button>
+    </div>
+
     <div id="results">
       <div class="stat-row" id="statRow"></div>
       <div class="message-box" id="messageBox"></div>
@@ -472,6 +483,10 @@
         showStatus('Scan complete', 'done');
         renderResults(data);
         document.getElementById('underpinCta').style.display = 'block';
+
+        // Show missing card if nothing found
+        document.getElementById('missingCard').style.display =
+          data.nftsFound === 0 ? 'block' : 'none';
 
         // Show pin step if there are IPFS CIDs to pin
         const hasIpfs = data.nftCards?.some(n => n.hasIpfs);
@@ -700,10 +715,37 @@
       });
     }
 
+    async function runCustomScan() {
+      const contract = document.getElementById('customContract').value.trim();
+      if (!/^0x[a-fA-F0-9]{40}$/.test(contract)) {
+        showStatus('Invalid contract address', 'error');
+        return;
+      }
+      if (!lastWallet) {
+        showStatus('Scan your wallet first', 'error');
+        return;
+      }
+      showStatus('Scanning contract...', '');
+      try {
+        const res = await fetch('/api/rescue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ wallet: lastWallet, contractOverride: contract }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showStatus(data.error || 'Error', 'error'); return; }
+        showStatus('Scan complete', 'done');
+        renderResults(data);
+      } catch (e) {
+        showStatus('Network error - ' + e.message, 'error');
+      }
+    }
+
     // Allow Enter key to submit
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         if (document.activeElement.id === 'pinata') runPin();
+        else if (document.activeElement.id === 'customContract') runCustomScan();
         else runScan();
       }
     });
