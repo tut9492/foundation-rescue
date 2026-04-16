@@ -8,7 +8,12 @@ const nextConfig = {
   },
   webpack: (config) => {
     // wagmi + walletconnect expect some Node shims in the browser bundle.
-    config.resolve.fallback = { fs: false, net: false, tls: false };
+    config.resolve.fallback = {
+      fs: false,
+      net: false,
+      tls: false,
+      "@react-native-async-storage/async-storage": false,
+    };
     config.externals.push("pino-pretty", "lokijs", "encoding");
     return config;
   },
