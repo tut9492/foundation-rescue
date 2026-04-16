@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Artist Profile - Underpin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --surface: #141414;
+      --border: #222;
+      --white: #f0f0f0;
+      --dim: #888;
+      --accent: #f0f0f0;
+      --red: #ff2d2d;
+      --green: #00c853;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--white);
+      font-family: Arial, Helvetica, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: var(--white);
+      text-decoration: none;
+    }
+
+    .header-links {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .header-links a {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--dim);
+      text-decoration: none;
+    }
+
+    .header-links a:hover { color: var(--white); }
+
+    /* Search */
+    .search-bar {
+      border-bottom: 1px solid var(--border);
+      padding: 24px 32px;
+      display: flex;
+      gap: 12px;
+      max-width: 640px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--white);
+      padding: 12px 16px;
+      font-size: 13px;
+      font-family: monospace;
+      outline: none;
+    }
+
+    input[type="text"]:focus { border-color: #444; }
+    input[type="text"]::placeholder { color: #444; }
+
+    button {
+      background: var(--white);
+      color: var(--bg);
+      border: none;
+      padding: 12px 24px;
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      cursor: pointer;
+    }
+
+    button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* Status */
+    #status {
+      display: none;
+      padding: 14px 32px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--dim);
+      border-bottom: 1px solid var(--border);
+    }
+
+    #status.error { color: var(--red); }
+
+    /* Profile */
+    #profile { display: none; }
+
+    .profile-header {
+      padding: 48px 32px 32px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .wallet-address {
+      font-family: monospace;
+      font-size: 12px;
+      color: var(--dim);
+      margin-bottom: 16px;
+    }
+
+    .profile-stats {
+      display: flex;
+      gap: 40px;
+      margin-top: 20px;
+    }
+
+    .profile-stat .num {
+      font-size: 28px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .profile-stat .label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--dim);
+      margin-top: 4px;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+    }
+
+    .tab {
+      padding: 16px 0;
+      margin-right: 32px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--dim);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.1s;
+    }
+
+    .tab.active {
+      color: var(--white);
+      border-bottom-color: var(--white);
+    }
+
+    /* Gallery */
+    .gallery-wrap { padding: 32px; }
+
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 2px;
+    }
+
+    .art-card {
+      position: relative;
+      background: var(--surface);
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .art-card img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.3s;
+    }
+
+    .art-card:hover img { transform: scale(1.03); }
+
+    .art-card .art-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 20px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .art-card:hover .art-overlay { opacity: 1; }
+
+    .art-overlay .art-name {
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .art-overlay .art-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .art-tag {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 3px 8px;
+      border: 1px solid rgba(255,255,255,0.3);
+      color: rgba(255,255,255,0.7);
+    }
+
+    .art-tag.locked { border-color: var(--red); color: var(--red); }
+    .art-tag.pinned { border-color: var(--green); color: var(--green); }
+
+    .list-btn {
+      width: 100%;
+      padding: 10px;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      background: var(--white);
+      color: var(--bg);
+    }
+
+    /* No image placeholder */
+    .no-img {
+      width: 100%;
+      aspect-ratio: 1;
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #333;
+    }
+
+    /* Collected notice */
+    .collected-notice {
+      margin-bottom: 24px;
+      padding: 14px 18px;
+      border: 1px solid #333;
+      font-size: 12px;
+      color: var(--dim);
+      line-height: 1.6;
+    }
+
+    .collected-notice strong { color: var(--white); }
+
+    /* Empty state */
+    .empty {
+      padding: 80px 32px;
+      text-align: center;
+      color: var(--dim);
+      font-size: 13px;
+    }
+
+    /* Loader */
+    .loader {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid #333;
+      border-top-color: var(--white);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 32px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    footer a { color: #444; text-decoration: none; }
+    footer a:hover { color: var(--white); }
+
+    .tut-logo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      text-decoration: none;
+      color: #444;
+      transition: color 0.15s;
+    }
+    .tut-logo:hover { color: var(--white); }
+    .tut-logo span { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; }
+    .tut-logo img { width: 36px; filter: invert(1) brightness(0.4); }
+    .tut-logo:hover img { filter: invert(1) brightness(1); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a class="logo" href="underpin.html">Underpin</a>
+    <div class="header-links">
+      <a href="index.html">Rescue Tool</a>
+      <a href="underpin.html">Vision</a>
+      <a href="https://github.com/tut9492/foundation-rescue" target="_blank">Fork It</a>
+    </div>
+  </header>
+
+  <div class="search-bar">
+    <input type="text" id="wallet" placeholder="Paste wallet address 0x..." spellcheck="false" />
+    <button id="loadBtn" onclick="loadProfile()">Load</button>
+  </div>
+
+  <div id="status"></div>
+
+  <div id="profile">
+    <div class="profile-header">
+      <div class="wallet-address" id="walletDisplay"></div>
+      <div class="profile-stats">
+        <div class="profile-stat">
+          <div class="num" id="statCreated">0</div>
+          <div class="label">Works Created</div>
+        </div>
+        <div class="profile-stat">
+          <div class="num" id="statCollected">0</div>
+          <div class="label">Collected</div>
+        </div>
+        <div class="profile-stat">
+          <div class="num" id="statTotal">0</div>
+          <div class="label">Total NFTs</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('created')">Created</div>
+      <div class="tab" onclick="switchTab('collected')">Collected</div>
+    </div>
+
+    <div class="gallery-wrap">
+      <div id="createdGallery"></div>
+      <div id="collectedGallery" style="display:none"></div>
+    </div>
+  </div>
+
+  <footer>
+    <span>Underpin - open source, no company, no gatekeepers</span>
+    <a class="tut-logo" href="https://x.com/Tuteth_" target="_blank">
+      <span>Built by</span>
+      <img src="/tut-logo.png" alt="Tut" />
+    </a>
+  </footer>
+
+  <script>
+    let currentData = null;
+
+    async function loadProfile() {
+      const wallet = document.getElementById('wallet').value.trim();
+      const btn = document.getElementById('loadBtn');
+
+      if (!/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+        showStatus('Invalid wallet address', 'error');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loader"></span>Loading...';
+      showStatus('Scanning Foundation contracts...', '');
+      document.getElementById('profile').style.display = 'none';
+
+      try {
+        const res = await fetch('/api/rescue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ wallet }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          showStatus(data.error || 'Something went wrong', 'error');
+          return;
+        }
+
+        currentData = data;
+        hideStatus();
+        renderProfile(wallet, data);
+
+      } catch (e) {
+        showStatus('Network error - ' + e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Load';
+      }
+    }
+
+    function renderProfile(wallet, data) {
+      document.getElementById('walletDisplay').textContent = wallet;
+      document.getElementById('statCreated').textContent = data.createdContracts ?? 0;
+      document.getElementById('statCollected').textContent = data.collectedContracts ?? 0;
+      document.getElementById('statTotal').textContent = data.nftsFound ?? 0;
+
+      const created = (data.nftCards || []).filter(n => n.isCreated);
+      const collected = (data.nftCards || []).filter(n => !n.isCreated);
+
+      document.getElementById('createdGallery').innerHTML = buildGallery(created, false);
+      document.getElementById('collectedGallery').innerHTML = buildGallery(collected, true);
+
+      document.getElementById('profile').style.display = 'block';
+      switchTab('created');
+    }
+
+    function buildGallery(nfts, isCollected) {
+      if (nfts.length === 0) {
+        return `<div class="empty">${isCollected ? 'No collected Foundation NFTs.' : 'No Foundation NFTs created by this wallet.'}</div>`;
+      }
+
+      let html = '';
+
+      if (isCollected) {
+        html += `<div class="collected-notice">
+          These are works collected from other Foundation artists.
+          <strong> Their art is at the same risk.</strong>
+          Let them know they could lose it - point them to
+          <a href="index.html" style="color:#f0f0f0;">foundation-rescue.vercel.app</a>.
+        </div>`;
+      }
+
+      html += `<div class="gallery">`;
+      for (const nft of nfts) {
+        const img = nft.imageUrl
+          ? `<img src="${nft.imageUrl}" alt="${escHtml(nft.name)}" loading="lazy" />`
+          : `<div class="no-img">No Image</div>`;
+
+        const tags = [];
+        if (nft.isLocked) tags.push(`<span class="art-tag locked">Locked in Market</span>`);
+        if (nft.pinnedMeta || nft.pinnedImage) tags.push(`<span class="art-tag pinned">Pinned</span>`);
+        if (!nft.hasIpfs) tags.push(`<span class="art-tag">No IPFS</span>`);
+
+        const listBtn = !isCollected
+          ? `<button class="list-btn" onclick="listNFT('${nft.contractAddress}','${nft.tokenId}')">List for Sale</button>`
+          : '';
+
+        html += `
+          <div class="art-card">
+            ${img}
+            <div class="art-overlay">
+              <div class="art-name">${escHtml(nft.name)}</div>
+              <div class="art-tags">${tags.join('')}</div>
+              ${listBtn}
+            </div>
+          </div>`;
+      }
+      html += `</div>`;
+      return html;
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => {
+        if (t.textContent.toLowerCase() === tab) t.classList.add('active');
+      });
+      document.getElementById('createdGallery').style.display = tab === 'created' ? 'block' : 'none';
+      document.getElementById('collectedGallery').style.display = tab === 'collected' ? 'block' : 'none';
+    }
+
+    function listNFT(contractAddress, tokenId) {
+      // Scaffold - wire up to listing contract on stream
+      alert(`List for sale:\nContract: ${contractAddress}\nToken ID: ${tokenId}\n\nComing soon - build this live on stream.`);
+    }
+
+    function showStatus(msg, type) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = type || '';
+      el.style.display = 'block';
+    }
+
+    function hideStatus() {
+      document.getElementById('status').style.display = 'none';
+    }
+
+    function escHtml(str) {
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    document.getElementById('wallet').addEventListener('keydown', e => {
+      if (e.key === 'Enter') loadProfile();
+    });
+
+    // Load from URL param ?wallet=0x...
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('wallet')) {
+      document.getElementById('wallet').value = params.get('wallet');
+      loadProfile();
+    }
+  </script>
+</body>
+</html>
