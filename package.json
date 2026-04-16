@@ -1,6 +1,30 @@
 {
-  "type": "module",
+  "name": "foundation-rescue",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Free tool to help Foundation.app artists rescue their NFTs + the Underpin marketplace vision.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
   "dependencies": {
-    "viem": "^2.21.0"
+    "@rainbow-me/rainbowkit": "^2.2.0",
+    "@tanstack/react-query": "^5.60.0",
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "viem": "^2.21.0",
+    "wagmi": "^2.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^15.1.0",
+    "typescript": "^5.6.0"
   }
 }
