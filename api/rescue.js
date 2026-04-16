@@ -54,6 +54,12 @@ async function fetchWithRetry(url, retries = 3) {
   }
 }
 
+const FOUNDATION_CONTRACTS = [
+  FOUNDATION_NFT721,
+  FOUNDATION_FACTORY_V1,
+  FOUNDATION_FACTORY_V2,
+];
+
 async function fetchFoundationNFTs(wallet) {
   const nfts = [];
   let pageKey = null;
@@ -62,12 +68,14 @@ async function fetchFoundationNFTs(wallet) {
     url.searchParams.set('owner', wallet);
     url.searchParams.set('withMetadata', 'true');
     url.searchParams.set('pageSize', '100');
+    // Filter at API level — avoids paginating through entire wallet for collectors with 1000s of NFTs
+    FOUNDATION_CONTRACTS.forEach(c => url.searchParams.append('contractAddresses[]', c));
     if (pageKey) url.searchParams.set('pageKey', pageKey);
 
     const json = await fetchWithRetry(url.toString());
 
     for (const nft of json.ownedNfts || []) {
-      if (isFoundation(nft)) nfts.push(nft);
+      nfts.push(nft);
     }
     pageKey = json.pageKey;
   } while (pageKey);
