@@ -98,7 +98,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid or missing wallet address' });
   }
   if (!ALCHEMY_KEY) {
-    return res.status(500).json({ error: 'Server misconfigured — missing ALCHEMY_KEY' });
+    return res.status(500).json({ error: 'Server misconfigured - missing ALCHEMY_KEY' });
   }
 
   const pinMode = !!pinataJwt;
@@ -125,7 +125,7 @@ export default async function handler(req, res) {
       const metadataCID = extractCID(nft.tokenUri);
       let pinnedMeta = false;
       if (metadataCID && pinMode) {
-        const r = await pinCID(metadataCID, `${name} — metadata`, pinataJwt);
+        const r = await pinCID(metadataCID, `${name} - metadata`, pinataJwt);
         (r.ok ? pinned : failed).push({ ...r, name, type: 'metadata' });
         if (r.ok) pinnedMeta = true;
       }
@@ -135,7 +135,7 @@ export default async function handler(req, res) {
       const imageCID = extractCID(imageUri);
       let pinnedImage = false;
       if (imageCID && imageCID !== metadataCID && pinMode) {
-        const r = await pinCID(imageCID, `${name} — image`, pinataJwt);
+        const r = await pinCID(imageCID, `${name} - image`, pinataJwt);
         (r.ok ? pinned : failed).push({ ...r, name, type: 'image' });
         if (r.ok) pinnedImage = true;
       }
@@ -194,7 +194,7 @@ export default async function handler(req, res) {
         : pinned.length > 0
           ? `All ${pinned.length} CIDs pinned successfully. Your assets are safe.`
           : nfts.length > 0
-            ? `${nfts.length} Foundation NFT(s) found but no IPFS CIDs could be extracted — media may be HTTP-hosted or metadata unavailable.`
+            ? `${nfts.length} Foundation NFT(s) found but no IPFS CIDs could be extracted - media may be HTTP-hosted or metadata unavailable.`
             : 'No Foundation NFTs found in this wallet.',
     });
 

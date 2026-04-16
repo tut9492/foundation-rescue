@@ -1,6 +1,6 @@
 # Contributing to Foundation Rescue + Underpin
 
-There is no core team. No roadmap. No process. Just open source infrastructure for the art community — built by whoever shows up.
+There is no core team. No roadmap. No process. Just open source infrastructure for the art community - built by whoever shows up.
 
 If something is broken, fix it. If something is missing, build it. If you disagree with a direction, fork it and run it better. That's the whole point.
 
@@ -17,11 +17,11 @@ The rescue tool is functional. Underpin is a vision waiting for builders. Here's
 - CLI improvements
 
 **Underpin**
-- Smart contracts — non-custodial marketplace on Ethereum, royalties at the protocol level
-- Indexer — open, self-hostable indexing layer for on-chain listings
-- Gallery frontend — browse listed artwork without wallet connection
-- Artist submission flow — list an NFT in a few clicks
-- Collector experience — buy direct, no intermediary
+- Smart contracts - non-custodial marketplace on Ethereum, royalties at the protocol level
+- Indexer - open, self-hostable indexing layer for on-chain listings
+- Gallery frontend - browse listed artwork without wallet connection
+- Artist submission flow - list an NFT in a few clicks
+- Collector experience - buy direct, no intermediary
 
 ---
 
@@ -61,4 +61,4 @@ npx vercel dev
 
 ## Issues
 
-Open an issue for bugs, feature requests, or questions. No template required — just be clear about what you saw or what you want.
+Open an issue for bugs, feature requests, or questions. No template required - just be clear about what you saw or what you want.

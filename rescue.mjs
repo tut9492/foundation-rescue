@@ -14,7 +14,7 @@
  * To also unlist:
  *   PINATA_JWT=xxx ALCHEMY_KEY=xxx PRIVATE_KEY=xxx node rescue.mjs <wallet>
  *
- * PRIVATE_KEY is optional — without it the script runs in read+pin mode only.
+ * PRIVATE_KEY is optional - without it the script runs in read+pin mode only.
  */
 
 import { createPublicClient, createWalletClient, http, parseAbi } from 'viem';
@@ -176,7 +176,7 @@ async function main() {
   const allNFTs = await alchemyNFTs(WALLET);
   const foundationNFTs = allNFTs.filter(isFoundation);
 
-  console.log(`Found ${allNFTs.length} total NFTs — ${foundationNFTs.length} from Foundation\n`);
+  console.log(`Found ${allNFTs.length} total NFTs - ${foundationNFTs.length} from Foundation\n`);
 
   if (foundationNFTs.length === 0) {
     console.log('No Foundation NFTs found in this wallet.');
@@ -184,7 +184,7 @@ async function main() {
     console.log('      Run this script with the same wallet to check marketplace listings.\n');
   }
 
-  // 2. Process each NFT — pin metadata + media
+  // 2. Process each NFT - pin metadata + media
   const pinResults = [];
   const marketListings = [];
 
@@ -202,7 +202,7 @@ async function main() {
     // Pin metadata CID
     if (metadataCID) {
       process.stdout.write(`   Pinning metadata CID ${metadataCID.slice(0,12)}...  `);
-      const result = await pinCID(metadataCID, `${name} — metadata`);
+      const result = await pinCID(metadataCID, `${name} - metadata`);
       console.log(result.ok ? `✅ ${result.status}` : `❌ ${result.error}`);
       pinResults.push({ name, type: 'metadata', cid: metadataCID, ...result });
     } else {
@@ -214,7 +214,7 @@ async function main() {
     const imageCID = extractCID(imageUri);
     if (imageCID && imageCID !== metadataCID) {
       process.stdout.write(`   Pinning image CID    ${imageCID.slice(0,12)}...  `);
-      const result = await pinCID(imageCID, `${name} — image`);
+      const result = await pinCID(imageCID, `${name} - image`);
       console.log(result.ok ? `✅ ${result.status}` : `❌ ${result.error}`);
       pinResults.push({ name, type: 'image', cid: imageCID, ...result });
     }
@@ -223,7 +223,7 @@ async function main() {
     const listing = await checkMarketListing(contractAddress, tokenId);
     if (listing.isListed) {
       const auctionId = await getAuctionId(contractAddress, tokenId);
-      console.log(`   ⚠️  LISTED IN MARKETPLACE — NFT is locked in the Foundation contract`);
+      console.log(`   ⚠️  LISTED IN MARKETPLACE - NFT is locked in the Foundation contract`);
       marketListings.push({ name, contractAddress, tokenId, auctionId });
     }
 
@@ -231,7 +231,7 @@ async function main() {
   }
 
   // 3. Check marketplace for NFTs listed FROM this wallet (held in contract)
-  //    These won't appear in wallet scan — they're owned by the marketplace contract
+  //    These won't appear in wallet scan - they're owned by the marketplace contract
   console.log('Note: NFTs actively listed are held by the Foundation contract and won\'t');
   console.log('      appear in your wallet scan. If you know specific tokenIds that are');
   console.log('      listed, run the unlist command directly.\n');
@@ -240,7 +240,7 @@ async function main() {
   if (marketListings.length > 0) {
     console.log('═══ Marketplace Listings ═══════════════════════════════════');
     for (const listing of marketListings) {
-      console.log(`  ${listing.name} — contract: ${listing.contractAddress} | tokenId: ${listing.tokenId}`);
+      console.log(`  ${listing.name} - contract: ${listing.contractAddress} | tokenId: ${listing.tokenId}`);
       if (listing.auctionId) {
         console.log(`  Auction ID: ${listing.auctionId} → cancelReserveAuction(${listing.auctionId})`);
       } else {

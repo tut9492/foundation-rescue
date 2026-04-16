@@ -2,13 +2,13 @@
 
 **Marketplaces shutting down is not the end. It's the beginning of a renaissance.**
 
-With access to AI coding tools, digital artists can now control the full creation and curation experience end to end — without relying on an intermediary. Foundation closed its doors. The art didn't go anywhere. Your assets are still on-chain, still yours. What's missing is the infrastructure to surface them on your own terms.
+With access to AI coding tools, digital artists can now control the full creation and curation experience end to end - without relying on an intermediary. Foundation closed its doors. The art didn't go anywhere. Your assets are still on-chain, still yours. What's missing is the infrastructure to surface them on your own terms.
 
 This repo is two things:
 
-1. **Foundation Rescue** — a free tool that helps artists affected by the Foundation shutdown scan their wallet, pin their IPFS media before it disappears, and retrieve any NFTs locked in Foundation's marketplace contract.
+1. **Foundation Rescue** - a free tool that helps artists affected by the Foundation shutdown scan their wallet, pin their IPFS media before it disappears, and retrieve any NFTs locked in Foundation's marketplace contract.
 
-2. **Underpin** — a vision and scaffold for a decentralized, community-owned digital art marketplace. No company behind it. No gatekeepers. Fork it, run it, make it yours.
+2. **Underpin** - a vision and scaffold for a decentralized, community-owned digital art marketplace. No company behind it. No gatekeepers. Fork it, run it, make it yours.
 
 ---
 
@@ -31,7 +31,7 @@ This repo is two things:
 
 Underpin is not a product. It's a starting point.
 
-The idea: artists and creatives should control their own curation, end to end. The tools exist now — AI, open-source smart contracts, IPFS, forkable frontends. There is no good reason for a third party to sit between an artist and their audience.
+The idea: artists and creatives should control their own curation, end to end. The tools exist now - AI, open-source smart contracts, IPFS, forkable frontends. There is no good reason for a third party to sit between an artist and their audience.
 
 Underpin is here for all artists and creatives to take that curation into their own hands.
 
@@ -44,9 +44,9 @@ Underpin is here for all artists and creatives to take that curation into their 
 ### Prerequisites
 
 - Node.js 18+
-- [Alchemy account](https://alchemy.com) — free tier works
-- [Pinata account](https://pinata.cloud) — free tier works (for pinning)
-- [Vercel account](https://vercel.com) — for deployment
+- [Alchemy account](https://alchemy.com) - free tier works
+- [Pinata account](https://pinata.cloud) - free tier works (for pinning)
+- [Vercel account](https://vercel.com) - for deployment
 
 ### Local development
 
@@ -65,7 +65,7 @@ npx vercel dev
 |---|---|---|
 | `ALCHEMY_KEY` | Yes | Alchemy API key for NFT data + Ethereum RPC |
 
-Artists provide their own Pinata JWT in the UI — it's never stored server-side.
+Artists provide their own Pinata JWT in the UI - it's never stored server-side.
 
 ### Deploy your own
 
@@ -123,7 +123,7 @@ This is a community project. There is no core team, no roadmap, no token. If som
 
 ## License
 
-MIT — do whatever you want with it. See [LICENSE](LICENSE).
+MIT - do whatever you want with it. See [LICENSE](LICENSE).
 
 ---
 
