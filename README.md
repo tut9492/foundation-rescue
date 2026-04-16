@@ -1,25 +1,22 @@
 # Foundation Rescue + Underpin
 
-**Marketplaces shutting down is not the end. It's the beginning of a renaissance.**
+Fuck it. We no longer need Foundation.
 
-With access to AI coding tools, artists can now build and own the full stack - creation, curation, distribution - without handing control to a platform that can disappear overnight. Foundation closed its doors. Your token contracts are on-chain and permanent - but the art and metadata behind them lives on IPFS or Foundation's own servers, and that can disappear. What's missing is infrastructure to preserve it, and a permanent home to surface it on your own terms.
+This is a free tool for every artist affected by the shutdown. Paste your wallet, see exactly what you created and what you collected - no signature required.
 
-This repo is two things:
-
-1. **Foundation Rescue** - a free tool that helps artists affected by the Foundation shutdown scan their wallet, pin their IPFS media before it disappears, and retrieve any NFTs locked in Foundation's marketplace contract.
-
-2. **Underpin** - a vision and scaffold for a decentralized, community-owned digital art marketplace. No company behind it. No gatekeepers. Fork it, run it, make it yours.
+Everything is open source. Fork it, build on it, make it yours.
 
 ---
 
 ## Foundation Rescue
 
-### What it does
+Two steps:
 
-- Scans a wallet for Foundation NFTs via Alchemy
-- Displays thumbnails with IPFS/lock status
-- Pins IPFS metadata + media to the artist's own Pinata account
-- Detects NFTs locked in the Foundation marketplace contract and provides exact calldata to retrieve them
+1. Paste your address. See every Foundation NFT you created or own, pulled straight from on-chain contract data.
+
+2. Get a free Pinata account and pin your art to IPFS in one click. Your content, your storage, nobody can take it down.
+
+The tool also shows art you collected from other artists - so you can tell them before their work disappears.
 
 ### Live tool
 
@@ -29,13 +26,15 @@ This repo is two things:
 
 ## Underpin
 
-Underpin is not a product. It's a starting point.
+The real chapter starts now.
 
-Deploy your own contracts. Mint directly on-chain. Own your media, your storefront, your collector relationships end to end. No company behind it, no gatekeepers, no single point of failure. Built by the community, for the community.
+Underpin is a vision for a decentralized art marketplace with no company behind it. No gatekeepers, no single point of failure.
 
-Your token is on-chain. Your art doesn't have to be at risk. Underpin is the open source infrastructure to keep it that way.
+AI dev tools exist. Artists can run their own infrastructure. Foundation shutting down is not a loss - it's proof we need to own the stack.
 
-[See the vision →](https://foundation-rescue.vercel.app/underpin.html)
+Fork it, build on it, make it yours.
+
+[See the vision](https://foundation-rescue.vercel.app/underpin.html)
 
 ---
 
@@ -65,7 +64,7 @@ npx vercel dev
 |---|---|---|
 | `ALCHEMY_KEY` | Yes | Alchemy API key for NFT data + Ethereum RPC |
 
-Artists provide their own Pinata JWT in the UI - it's never stored server-side.
+Artists provide their own Pinata JWT in the UI - it is never stored server-side.
 
 ### Deploy your own
 
@@ -77,27 +76,31 @@ npx vercel --prod  # redeploy with env var
 
 ---
 
-## Architecture
+## How it works
 
-```
-foundation-rescue/
-  index.html          # Rescue tool frontend (static)
-  underpin.html       # Underpin manifesto page (static)
-  api/
-    rescue.js         # Vercel serverless function
-  rescue.mjs          # CLI version of the rescue tool
-  vercel.json         # Vercel config (60s timeout)
-```
+**95,297 Foundation collection contracts** - enumerated directly from Foundation's Factory V1 and V2 creation events on-chain via Etherscan. A complete, verifiable, permanent list.
+
+For any wallet:
+
+1. `getContractsForOwner` - gets every unique contract address in the wallet (lightweight, no NFT data)
+2. Set lookup against 95k Foundation contracts - instant, definitive
+3. `getContractMetadata` on Foundation contracts only - determines which you created vs collected via `contractDeployer`
+4. `getNFTsForOwner` with only Foundation contracts - targeted fetch, full metadata
+
+No blind scanning. Works for any wallet size.
 
 **API: `POST /api/rescue`**
 
 ```json
 // Request
-{ "wallet": "0x...", "pinataJwt": "optional" }
+{ "wallet": "0x...", "pinataJwt": "optional", "createdOnly": false }
 
 // Response
 {
-  "nftsFound": 3,
+  "nftsFound": 12,
+  "foundationContracts": 4,
+  "createdContracts": 2,
+  "collectedContracts": 2,
   "nftCards": [...],
   "pinned": [...],
   "failed": [...],
@@ -107,9 +110,24 @@ foundation-rescue/
 
 **Foundation contracts used:**
 - Marketplace: `0xcDA72070E455bb31C7690a170224Ce43623d0B6f`
-- NFT721: `0x3B3ee1931Dc30C1957379FAc9aba94D1C48a5405`
+- NFT721 (shared): `0x3B3ee1931Dc30C1957379FAc9aba94D1C48a5405`
 - Factory V1: `0x3B612a5B49e025a6e4bA4eE4FB1EF46D13588059`
 - Factory V2: `0x612E2DadDc89d91409e40f946f9f7CfE422e777E`
+
+---
+
+## Architecture
+
+```
+foundation-rescue/
+  index.html                    # Rescue tool frontend
+  underpin.html                 # Underpin vision page
+  foundation-contracts-list.json # 95k Foundation contract addresses
+  api/
+    rescue.js                   # Vercel serverless function
+  rescue.mjs                    # CLI version
+  vercel.json                   # 60s timeout config
+```
 
 ---
 
@@ -117,18 +135,16 @@ foundation-rescue/
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-This is a community project. There is no core team, no roadmap, no token. If something is broken, open an issue. If you want to build something, open a PR. If you want to run your own instance, fork it.
+No core team, no roadmap, no token. If something is broken, open an issue. If you want to build something, open a PR. If you want to run your own instance, fork it.
 
 ---
 
 ## License
 
-MIT - do whatever you want with it. See [LICENSE](LICENSE).
+MIT. Do whatever you want with it.
 
 ---
 
-## Vision
+The next chapter for digital art is artists deploying their own contracts, minting directly on-chain, owning their media and their collector relationships end to end - on open infrastructure that nobody can shut down.
 
-The next chapter for digital art isn't another platform. It's artists deploying their own contracts, minting directly on-chain, owning their media and their collector relationships end to end - on open infrastructure that nobody can shut down.
-
-The renaissance starts now. Fork it, run it, make it yours.
+Fork it, run it, make it yours.
