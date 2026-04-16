@@ -502,7 +502,7 @@
 
       btn.disabled = true;
       btn.innerHTML = '<span class="loader"></span>Pinning...';
-      showStatus('Pinning your IPFS content to Pinata - this may take 30–60 seconds...', '');
+      showStatus('Pinning your IPFS content to Pinata - this may take 30-60 seconds...', '');
 
       try {
         const res = await fetch('/api/rescue', {

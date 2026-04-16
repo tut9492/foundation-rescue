@@ -188,7 +188,7 @@ export default async function handler(req, res) {
       failed,
       listings,
       nftCards,
-      pinnataUrl: 'https://app.pinata.cloud/files',
+      pinataUrl: 'https://app.pinata.cloud/files',
       message: listings.length > 0
         ? `${listings.length} NFT(s) are locked in the Foundation marketplace contract. See 'listings' for unlist details.`
         : pinned.length > 0
