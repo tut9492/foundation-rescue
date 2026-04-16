@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/rescue.js": {
+      "maxDuration": 60
+    }
+  }
+}

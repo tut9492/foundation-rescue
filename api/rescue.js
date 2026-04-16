@@ -1,0 +1,191 @@
+import { createPublicClient, http, parseAbi } from 'viem';
+import { mainnet } from 'viem/chains';
+
+const ALCHEMY_KEY      = process.env.ALCHEMY_KEY;
+const RPC_URL          = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`;
+const NFT_API_BASE     = `https://eth-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_KEY}`;
+const PINATA_PIN_URL   = 'https://api.pinata.cloud/v3/files/public/pin_by_cid';
+
+const FOUNDATION_MARKET     = '0xcDA72070E455bb31C7690a170224Ce43623d0B6f';
+const FOUNDATION_NFT721     = '0x3B3ee1931Dc30C1957379FAc9aba94D1C48a5405';
+const FOUNDATION_FACTORY_V1 = '0x3B612a5B49e025a6e4bA4eE4FB1EF46D13588059';
+const FOUNDATION_FACTORY_V2 = '0x612E2DadDc89d91409e40f946f9f7CfE422e777E';
+const KNOWN_FOUNDATION      = new Set([
+  FOUNDATION_NFT721.toLowerCase(),
+  FOUNDATION_FACTORY_V1.toLowerCase(),
+  FOUNDATION_FACTORY_V2.toLowerCase(),
+]);
+
+const marketAbi = parseAbi([
+  'function getBuyPrice(address nftContract, uint256 tokenId) view returns (address seller, uint256 price)',
+  'function getReserveAuctionIdFor(address nftContract, uint256 tokenId) view returns (uint256 auctionId)',
+]);
+
+const nftAbi = parseAbi([
+  'function tokenURI(uint256 tokenId) view returns (string)',
+]);
+
+function extractCID(uri) {
+  if (!uri) return null;
+  const ipfs = uri.match(/ipfs:\/\/([a-zA-Z0-9]+)/);
+  if (ipfs) return ipfs[1];
+  const gateway = uri.match(/\/ipfs\/([a-zA-Z0-9]+)/);
+  if (gateway) return gateway[1];
+  return null;
+}
+
+function isFoundation(nft) {
+  const addr = nft.contract?.address?.toLowerCase();
+  if (KNOWN_FOUNDATION.has(addr)) return true;
+  if (nft.raw?.metadata?.external_url?.includes('foundation.app')) return true;
+  if (nft.tokenUri?.includes('foundation')) return true;
+  return false;
+}
+
+async function fetchFoundationNFTs(wallet) {
+  const nfts = [];
+  let pageKey = null;
+  do {
+    const url = new URL(`${NFT_API_BASE}/getNFTsForOwner`);
+    url.searchParams.set('owner', wallet);
+    url.searchParams.set('withMetadata', 'true');
+    url.searchParams.set('pageSize', '100');
+    if (pageKey) url.searchParams.set('pageKey', pageKey);
+
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error(`Alchemy error ${res.status}`);
+    const json = await res.json();
+
+    for (const nft of json.ownedNfts || []) {
+      if (isFoundation(nft)) nfts.push(nft);
+    }
+    pageKey = json.pageKey;
+  } while (pageKey);
+
+  return nfts;
+}
+
+async function pinCID(cid, name, pinataJwt) {
+  try {
+    const res = await fetch(PINATA_PIN_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${pinataJwt}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ cid, name }),
+    });
+    const json = await res.json();
+    return res.ok
+      ? { ok: true, cid, status: json.data?.status ?? 'queued' }
+      : { ok: false, cid, error: json.error ?? res.status };
+  } catch (e) {
+    return { ok: false, cid, error: e.message };
+  }
+}
+
+export default async function handler(req, res) {
+  // CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+
+  const { wallet, pinataJwt } = req.body ?? {};
+
+  if (!wallet || !/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+    return res.status(400).json({ error: 'Invalid or missing wallet address' });
+  }
+  if (!pinataJwt) {
+    return res.status(400).json({ error: 'Missing pinataJwt — create a free key at pinata.cloud' });
+  }
+  if (!ALCHEMY_KEY) {
+    return res.status(500).json({ error: 'Server misconfigured — missing ALCHEMY_KEY' });
+  }
+
+  const publicClient = createPublicClient({ chain: mainnet, transport: http(RPC_URL) });
+
+  try {
+    // 1. Find Foundation NFTs
+    const nfts = await fetchFoundationNFTs(wallet.toLowerCase());
+
+    const pinned = [];
+    const failed = [];
+    const listings = [];
+
+    // 2. Process each NFT
+    await Promise.all(nfts.map(async (nft) => {
+      const contractAddress = nft.contract.address;
+      const tokenId = nft.tokenId;
+      const name = nft.name || nft.contract.name || `Token #${tokenId}`;
+
+      // Pin metadata CID
+      const metadataCID = extractCID(nft.tokenUri);
+      if (metadataCID) {
+        const r = await pinCID(metadataCID, `${name} — metadata`, pinataJwt);
+        (r.ok ? pinned : failed).push({ ...r, name, type: 'metadata' });
+      }
+
+      // Pin image CID
+      const imageUri = nft.raw?.metadata?.image || nft.image?.originalUrl;
+      const imageCID = extractCID(imageUri);
+      if (imageCID && imageCID !== metadataCID) {
+        const r = await pinCID(imageCID, `${name} — image`, pinataJwt);
+        (r.ok ? pinned : failed).push({ ...r, name, type: 'image' });
+      }
+
+      // Check marketplace
+      try {
+        const [seller] = await publicClient.readContract({
+          address: FOUNDATION_MARKET,
+          abi: marketAbi,
+          functionName: 'getBuyPrice',
+          args: [contractAddress, BigInt(tokenId)],
+        });
+        if (seller !== '0x0000000000000000000000000000000000000000') {
+          let auctionId = null;
+          try {
+            const id = await publicClient.readContract({
+              address: FOUNDATION_MARKET,
+              abi: marketAbi,
+              functionName: 'getReserveAuctionIdFor',
+              args: [contractAddress, BigInt(tokenId)],
+            });
+            if (Number(id) > 0) auctionId = Number(id);
+          } catch {}
+
+          listings.push({
+            name,
+            contractAddress,
+            tokenId,
+            auctionId,
+            unlockMethod: auctionId ? 'cancelReserveAuction' : 'cancelBuyPrice',
+            calldata: auctionId
+              ? `cancelReserveAuction(${auctionId})`
+              : `cancelBuyPrice(${contractAddress}, ${tokenId})`,
+            marketContract: FOUNDATION_MARKET,
+          });
+        }
+      } catch {}
+    }));
+
+    return res.status(200).json({
+      wallet,
+      nftsFound: nfts.length,
+      pinned,
+      failed,
+      listings,
+      pinnataUrl: 'https://app.pinata.cloud/files',
+      message: listings.length > 0
+        ? `${listings.length} NFT(s) are locked in the Foundation marketplace contract. See 'listings' for unlist details.`
+        : pinned.length > 0
+          ? `All ${pinned.length} CIDs pinned successfully. Your assets are safe.`
+          : 'No Foundation NFTs found in this wallet.',
+    });
+
+  } catch (e) {
+    console.error('[rescue]', e);
+    return res.status(500).json({ error: e.message });
+  }
+}
