@@ -47,6 +47,8 @@ function isFoundation(nft) {
   return false;
 }
 
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
 async function fetchWithRetry(url, retries = 3) {
   for (let i = 0; i < retries; i++) {
     const res = await fetch(url);
@@ -54,21 +56,47 @@ async function fetchWithRetry(url, retries = 3) {
     const body = await res.text();
     console.error(`[Alchemy] ${res.status} attempt ${i + 1}:`, body);
     if (res.status === 400) throw new Error(`Invalid wallet address or request`);
-    if (i < retries - 1) await new Promise(r => setTimeout(r, 500 * (i + 1)));
+    if (i < retries - 1) await sleep(1000 * (i + 1));
     else throw new Error(`Alchemy returned ${res.status} after ${retries} attempts. Try again in a moment.`);
   }
 }
 
-// Foundation creates a unique contract per artist collection via their factories.
-// The factory addresses are deploy origins, not NFT homes. We must scan all NFTs
-// and filter by Foundation signals in metadata.
-const MAX_NFTS_TO_SCAN = 1000; // Vercel 60s limit guard
+const FOUNDATION_CONTRACTS = [
+  FOUNDATION_NFT721,
+  FOUNDATION_FACTORY_V1,
+  FOUNDATION_FACTORY_V2,
+];
+
+// Two-pass scan:
+// Pass 1 - known contracts filter (fast, catches shared-contract mints)
+// Pass 2 - unfiltered scan up to 500 NFTs (catches individual collection contracts)
+const MAX_UNFILTERED_SCAN = 500;
 
 async function fetchFoundationNFTs(wallet) {
+  const seen = new Set();
   const nfts = [];
-  let pageKey = null;
-  let totalScanned = 0;
 
+  // Pass 1: known Foundation contracts - paginate fully, fast
+  let pageKey = null;
+  do {
+    const url = new URL(`${NFT_API_BASE}/getNFTsForOwner`);
+    url.searchParams.set('owner', wallet);
+    url.searchParams.set('withMetadata', 'true');
+    url.searchParams.set('pageSize', '100');
+    FOUNDATION_CONTRACTS.forEach(c => url.searchParams.append('contractAddresses[]', c));
+    if (pageKey) url.searchParams.set('pageKey', pageKey);
+
+    const json = await fetchWithRetry(url.toString());
+    for (const nft of json.ownedNfts || []) {
+      const key = `${nft.contract.address}-${nft.tokenId}`;
+      if (!seen.has(key)) { seen.add(key); nfts.push(nft); }
+    }
+    pageKey = json.pageKey;
+  } while (pageKey);
+
+  // Pass 2: unfiltered scan - catches individual Foundation collection contracts
+  let totalScanned = 0;
+  pageKey = null;
   do {
     const url = new URL(`${NFT_API_BASE}/getNFTsForOwner`);
     url.searchParams.set('owner', wallet);
@@ -81,10 +109,15 @@ async function fetchFoundationNFTs(wallet) {
     totalScanned += batch.length;
 
     for (const nft of batch) {
-      if (isFoundation(nft)) nfts.push(nft);
+      const key = `${nft.contract.address}-${nft.tokenId}`;
+      if (!seen.has(key) && isFoundation(nft)) {
+        seen.add(key);
+        nfts.push(nft);
+      }
     }
 
-    pageKey = totalScanned < MAX_NFTS_TO_SCAN ? json.pageKey : null;
+    pageKey = totalScanned < MAX_UNFILTERED_SCAN ? json.pageKey : null;
+    if (pageKey) await sleep(150); // avoid rate limit between pages
   } while (pageKey);
 
   return { nfts, totalScanned };
