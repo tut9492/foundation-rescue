@@ -548,6 +548,16 @@
           <div class="num">${data.nftsFound}</div>
           <div class="label">NFTs Found</div>
         </div>
+        ${data.createdContracts > 0 ? `
+        <div class="stat">
+          <div class="num">${data.createdContracts}</div>
+          <div class="label">Your Collections</div>
+        </div>` : ''}
+        ${data.collectedContracts > 0 ? `
+        <div class="stat">
+          <div class="num">${data.collectedContracts}</div>
+          <div class="label">Collected</div>
+        </div>` : ''}
         <div class="stat good">
           <div class="num">${data.pinned.length}</div>
           <div class="label">CIDs Pinned</div>
@@ -570,27 +580,51 @@
       // NFT Grid
       const listingsSection = document.getElementById('listingsSection');
       if (data.nftCards && data.nftCards.length > 0) {
-        let html = `<div class="card"><h2>Your Foundation NFTs</h2><div class="nft-grid">`;
-        for (const nft of data.nftCards) {
-          const img = nft.imageUrl
-            ? `<img src="${nft.imageUrl}" alt="${nft.name}" loading="lazy" />`
-            : `<div style="aspect-ratio:1;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:11px;color:#888;font-weight:700;text-transform:uppercase">No Image</div>`;
+        const created   = data.nftCards.filter(n => n.isCreated);
+        const collected = data.nftCards.filter(n => !n.isCreated);
 
-          const tags = [];
-          if (nft.pinnedMeta || nft.pinnedImage) tags.push(`<span class="tag pinned">Pinned</span>`);
-          if (nft.isLocked) tags.push(`<span class="tag locked">Locked in Market</span>`);
-          if (!nft.hasIpfs) tags.push(`<span class="tag no-ipfs">No IPFS</span>`);
+        function buildGrid(nfts) {
+          let html = `<div class="nft-grid">`;
+          for (const nft of nfts) {
+            const img = nft.imageUrl
+              ? `<img src="${nft.imageUrl}" alt="${nft.name}" loading="lazy" />`
+              : `<div style="aspect-ratio:1;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:11px;color:#888;font-weight:700;text-transform:uppercase">No Image</div>`;
 
+            const tags = [];
+            if (nft.pinnedMeta || nft.pinnedImage) tags.push(`<span class="tag pinned">Pinned</span>`);
+            if (nft.isLocked) tags.push(`<span class="tag locked">Locked in Market</span>`);
+            if (!nft.hasIpfs) tags.push(`<span class="tag no-ipfs">No IPFS</span>`);
+
+            html += `
+              <div class="nft-card">
+                ${img}
+                <div class="nft-info">
+                  <div class="nft-name">${nft.name}</div>
+                  <div class="nft-status">${tags.join('')}</div>
+                </div>
+              </div>`;
+          }
+          html += `</div>`;
+          return html;
+        }
+
+        let html = '';
+
+        if (created.length > 0) {
+          html += `<div class="card"><h2>Your Work (${created.length})</h2>${buildGrid(created)}</div>`;
+        }
+
+        if (collected.length > 0) {
           html += `
-            <div class="nft-card">
-              ${img}
-              <div class="nft-info">
-                <div class="nft-name">${nft.name}</div>
-                <div class="nft-status">${tags.join('')}</div>
+            <div class="card">
+              <h2>Collected (${collected.length})</h2>
+              <div style="border:2px solid #000;padding:14px 16px;margin-bottom:20px;background:#fff8e1;font-size:12px;font-weight:700;line-height:1.5;">
+                These are works you own from other Foundation artists. Their IPFS content is at the same risk. Let them know they could lose their art - and point them here.
               </div>
+              ${buildGrid(collected)}
             </div>`;
         }
-        html += `</div></div>`;
+
         listingsSection.innerHTML = html;
       }
 
