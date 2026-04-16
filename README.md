@@ -2,7 +2,7 @@
 
 **Marketplaces shutting down is not the end. It's the beginning of a renaissance.**
 
-With access to AI coding tools, digital artists can now control the full creation and curation experience end to end - without relying on an intermediary. Foundation closed its doors. The art didn't go anywhere. Your assets are still on-chain, still yours. What's missing is the infrastructure to surface them on your own terms.
+With access to AI coding tools, digital artists can now control the full creation and curation experience end to end - without relying on an intermediary. Foundation closed its doors. Your token contracts are on-chain and permanent - but the art and metadata behind them lives on IPFS or Foundation's own servers, and that can disappear. What's missing is the infrastructure to preserve it and surface it on your own terms.
 
 This repo is two things:
 
