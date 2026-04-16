@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import type { RescueResponse, NftCard } from "@/lib/types";
+import type { ProfileNft, ProfileResponse } from "@/app/api/profile/route";
 import { TutLogo } from "@/components/TutLogo";
 
 export default function ProfilePage() {
   const { address, isConnected } = useAccount();
-  const [data, setData] = useState<RescueResponse | null>(null);
+  const [data, setData] = useState<ProfileResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +25,7 @@ export default function ProfilePage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/rescue", {
+        const res = await fetch("/api/profile", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ wallet: address }),
@@ -36,9 +36,10 @@ export default function ProfilePage() {
           setError(json.error || `Server returned ${res.status}`);
           return;
         }
-        setData(json as RescueResponse);
-      } catch (e: any) {
-        if (!cancelled) setError(e.message || "Network error");
+        setData(json as ProfileResponse);
+      } catch (e: unknown) {
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : "Network error");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -48,9 +49,6 @@ export default function ProfilePage() {
       cancelled = true;
     };
   }, [address, isConnected]);
-
-  const created = data?.nftCards.filter((n) => n.isCreated) ?? [];
-  const collected = data?.nftCards.filter((n) => !n.isCreated) ?? [];
 
   return (
     <div className="profile-page">
@@ -69,53 +67,33 @@ export default function ProfilePage() {
         {!isConnected ? (
           <ProfileLanding />
         ) : loading ? (
-          <ConnectedHero address={address!}>
-            <div className="loading">Loading your art…</div>
-          </ConnectedHero>
+          <HeroShell address={address!}>
+            <div className="loading">Scanning your on-chain work…</div>
+          </HeroShell>
         ) : error ? (
-          <ConnectedHero address={address!}>
-            <div className="error">Couldn&apos;t load your art: {error}</div>
-          </ConnectedHero>
+          <HeroShell address={address!}>
+            <div className="error">Could not load your art: {error}</div>
+          </HeroShell>
         ) : data ? (
-          <ConnectedHero address={address!}>
+          <HeroShell address={address!}>
             <div className="stats">
               <span>
-                <strong>{data.nftsFound}</strong>
-                Total
-              </span>
-              <span>
-                <strong>{data.createdContracts}</strong>
-                Collections
-              </span>
-              <span>
-                <strong>{data.collectedContracts}</strong>
-                Collected
+                <strong>{data.totalMinted}</strong>
+                Minted
               </span>
             </div>
 
-            {created.length > 0 && (
-              <>
-                <p className="section-label">Your Work</p>
-                <ArtGrid nfts={created} />
-              </>
-            )}
-
-            {collected.length > 0 && (
-              <>
-                <p className="section-label">Collected</p>
-                <ArtGrid nfts={collected} />
-              </>
-            )}
-
-            {data.nftsFound === 0 && (
+            {data.nfts.length > 0 ? (
+              <ArtGrid nfts={data.nfts} />
+            ) : (
               <div className="empty">
-                <p>No Foundation NFTs found for this wallet.</p>
+                <p>No NFTs minted from this wallet.</p>
                 <Link href="/" className="btn-secondary">
                   Back to Rescue Tool
                 </Link>
               </div>
             )}
-          </ConnectedHero>
+          </HeroShell>
         ) : null}
       </main>
 
@@ -133,8 +111,9 @@ function ProfileLanding() {
         <em>your page.</em>
       </h1>
       <p>
-        Connect your wallet. See everything you&apos;ve created and collected.
-        This is the start of your mint page — owned by you, hosted by no one.
+        Connect your wallet. Every NFT you&apos;ve ever minted — any platform,
+        any contract — in one place. This is the start of your mint page, owned
+        by you, hosted by no one.
       </p>
       <ConnectButton.Custom>
         {({ openConnectModal, mounted }) => (
@@ -152,7 +131,7 @@ function ProfileLanding() {
   );
 }
 
-function ConnectedHero({
+function HeroShell({
   address,
   children,
 }: {
@@ -168,11 +147,10 @@ function ConnectedHero({
           <em>your page.</em>
         </h1>
         <p>
-          Connected as{" "}
-          <span style={{ fontFamily: "monospace", color: "#f0f0f0" }}>
+          Everything you&apos;ve ever minted.{" "}
+          <span style={{ fontFamily: "monospace", opacity: 0.6 }}>
             {address.slice(0, 6)}…{address.slice(-4)}
           </span>
-          . Next: set prices, turn this into your mint page.
         </p>
       </section>
       {children}
@@ -180,7 +158,7 @@ function ConnectedHero({
   );
 }
 
-function ArtGrid({ nfts }: { nfts: NftCard[] }) {
+function ArtGrid({ nfts }: { nfts: ProfileNft[] }) {
   return (
     <div className="art-grid">
       {nfts.map((nft) => (
@@ -201,11 +179,9 @@ function ArtGrid({ nfts }: { nfts: NftCard[] }) {
           )}
           <div className="art-meta">
             <div className="art-name">{nft.name}</div>
-            <div
-              className={`art-badge ${nft.isCreated ? "created" : ""}`}
-            >
-              {nft.isCreated ? "Created" : "Collected"}
-            </div>
+            {nft.contractName && (
+              <div className="art-badge">{nft.contractName}</div>
+            )}
           </div>
         </div>
       ))}
