@@ -42,6 +42,18 @@ function isFoundation(nft) {
   return false;
 }
 
+async function fetchWithRetry(url, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    const res = await fetch(url);
+    if (res.ok) return res.json();
+    const body = await res.text();
+    console.error(`[Alchemy] ${res.status} attempt ${i + 1}:`, body);
+    if (res.status === 400) throw new Error(`Invalid wallet address or request`);
+    if (i < retries - 1) await new Promise(r => setTimeout(r, 500 * (i + 1)));
+    else throw new Error(`Alchemy returned ${res.status} after ${retries} attempts. Try again in a moment.`);
+  }
+}
+
 async function fetchFoundationNFTs(wallet) {
   const nfts = [];
   let pageKey = null;
@@ -52,9 +64,7 @@ async function fetchFoundationNFTs(wallet) {
     url.searchParams.set('pageSize', '100');
     if (pageKey) url.searchParams.set('pageKey', pageKey);
 
-    const res = await fetch(url.toString());
-    if (!res.ok) throw new Error(`Alchemy error ${res.status}`);
-    const json = await res.json();
+    const json = await fetchWithRetry(url.toString());
 
     for (const nft of json.ownedNfts || []) {
       if (isFoundation(nft)) nfts.push(nft);
