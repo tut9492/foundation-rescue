@@ -50,31 +50,48 @@ async function fetchWithRetry(url, retries = 3) {
   }
 }
 
-// Step 1: get unique contracts in wallet with metadata (includes contractDeployer)
-async function getWalletContracts(wallet) {
-  const contracts = [];
+// Step 1: get all unique contract addresses in wallet (withMetadata=false avoids Alchemy pageKey bug)
+async function getWalletContractAddresses(wallet) {
+  const addresses = [];
   let pageKey = null;
   do {
     const url = new URL(`${NFT_API_BASE}/getContractsForOwner`);
     url.searchParams.set('owner', wallet);
-    url.searchParams.set('withMetadata', 'true');
+    url.searchParams.set('withMetadata', 'false');
     url.searchParams.set('pageSize', '100');
     if (pageKey) url.searchParams.set('pageKey', pageKey);
     const json = await fetchWithRetry(url.toString());
-    contracts.push(...(json.contracts || []));
+    addresses.push(...(json.contracts || []).map(c => c.address));
     pageKey = json.pageKey;
   } while (pageKey);
-  return contracts;
+  return addresses;
 }
 
-// Step 2: filter to Foundation contracts, tagging each as created vs collected
-function filterFoundation(contracts, wallet) {
-  return contracts
-    .filter(c => FOUNDATION_SET.has(c.address.toLowerCase()))
-    .map(c => ({
-      address: c.address,
-      created: c.contractDeployer?.toLowerCase() === wallet.toLowerCase(),
+// Step 2: filter to Foundation contracts using on-chain derived set
+function filterFoundationAddresses(addresses) {
+  return addresses.filter(a => FOUNDATION_SET.has(a.toLowerCase()));
+}
+
+// Step 3: get deployer for each Foundation contract to determine created vs collected
+async function getContractDeployers(addresses) {
+  const deployers = {};
+  // Batch in groups of 5 to stay under rate limit
+  const BATCH = 5;
+  for (let i = 0; i < addresses.length; i += BATCH) {
+    const chunk = addresses.slice(i, i + BATCH);
+    await Promise.all(chunk.map(async (addr) => {
+      const url = new URL(`${NFT_API_BASE}/getContractMetadata`);
+      url.searchParams.set('contractAddress', addr);
+      try {
+        const json = await fetchWithRetry(url.toString());
+        deployers[addr.toLowerCase()] = (json.contractDeployer || '').toLowerCase();
+      } catch {
+        deployers[addr.toLowerCase()] = '';
+      }
     }));
+    if (i + BATCH < addresses.length) await sleep(200);
+  }
+  return deployers;
 }
 
 // Step 3: fetch NFTs for specific Foundation contracts only
@@ -141,11 +158,19 @@ export default async function handler(req, res) {
   const publicClient = createPublicClient({ chain: mainnet, transport: http(RPC_URL) });
 
   try {
-    // 1. Get all unique contracts in wallet with deployer info
-    const allContracts = await getWalletContracts(wallet.toLowerCase());
+    // 1. Get all unique contract addresses in wallet
+    const allAddresses = await getWalletContractAddresses(wallet.toLowerCase());
 
-    // 2. Filter to Foundation contracts, tag created vs collected
-    const foundationContracts = filterFoundation(allContracts, wallet);
+    // 2. Filter to Foundation contracts using 95k on-chain derived set
+    const foundationAddresses = filterFoundationAddresses(allAddresses);
+
+    // 3. Get deployer for each Foundation contract (created vs collected)
+    const deployers = await getContractDeployers(foundationAddresses);
+    const foundationContracts = foundationAddresses.map(addr => ({
+      address: addr,
+      created: deployers[addr.toLowerCase()] === wallet.toLowerCase(),
+    }));
+
     const targetContracts = createdOnly
       ? foundationContracts.filter(c => c.created)
       : foundationContracts;
@@ -153,7 +178,7 @@ export default async function handler(req, res) {
     const createdCount = foundationContracts.filter(c => c.created).length;
     const collectedCount = foundationContracts.filter(c => !c.created).length;
 
-    // 3. Fetch full NFT data only for Foundation contracts
+    // 4. Fetch full NFT data only for Foundation contracts
     const nfts = await fetchNFTsForContracts(wallet, targetContracts.map(c => c.address));
 
     const pinned = [];
