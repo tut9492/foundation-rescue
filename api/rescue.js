@@ -181,7 +181,9 @@ export default async function handler(req, res) {
         ? `${listings.length} NFT(s) are locked in the Foundation marketplace contract. See 'listings' for unlist details.`
         : pinned.length > 0
           ? `All ${pinned.length} CIDs pinned successfully. Your assets are safe.`
-          : 'No Foundation NFTs found in this wallet.',
+          : nfts.length > 0
+            ? `${nfts.length} Foundation NFT(s) found but no IPFS CIDs could be extracted — media may be HTTP-hosted or metadata unavailable.`
+            : 'No Foundation NFTs found in this wallet.',
     });
 
   } catch (e) {
