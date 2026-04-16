@@ -113,29 +113,39 @@ export default async function handler(req, res) {
     const pinned = [];
     const failed = [];
     const listings = [];
+    const nftCards = [];
 
     // 2. Process each NFT
     await Promise.all(nfts.map(async (nft) => {
       const contractAddress = nft.contract.address;
       const tokenId = nft.tokenId;
       const name = nft.name || nft.contract.name || `Token #${tokenId}`;
+      const imageUrl = nft.image?.cachedUrl || nft.image?.originalUrl || nft.raw?.metadata?.image || null;
 
       // Pin metadata CID
       const metadataCID = extractCID(nft.tokenUri);
+      let pinnedMeta = false;
       if (metadataCID) {
         const r = await pinCID(metadataCID, `${name} — metadata`, pinataJwt);
         (r.ok ? pinned : failed).push({ ...r, name, type: 'metadata' });
+        if (r.ok) pinnedMeta = true;
       }
 
       // Pin image CID
       const imageUri = nft.raw?.metadata?.image || nft.image?.originalUrl;
       const imageCID = extractCID(imageUri);
+      let pinnedImage = false;
       if (imageCID && imageCID !== metadataCID) {
         const r = await pinCID(imageCID, `${name} — image`, pinataJwt);
         (r.ok ? pinned : failed).push({ ...r, name, type: 'image' });
+        if (r.ok) pinnedImage = true;
       }
 
+      const hasIpfs = !!(metadataCID || imageCID);
+
       // Check marketplace
+      let isLocked = false;
+      let auctionId = null;
       try {
         const [seller] = await publicClient.readContract({
           address: FOUNDATION_MARKET,
@@ -144,7 +154,7 @@ export default async function handler(req, res) {
           args: [contractAddress, BigInt(tokenId)],
         });
         if (seller !== '0x0000000000000000000000000000000000000000') {
-          let auctionId = null;
+          isLocked = true;
           try {
             const id = await publicClient.readContract({
               address: FOUNDATION_MARKET,
@@ -168,6 +178,8 @@ export default async function handler(req, res) {
           });
         }
       } catch {}
+
+      nftCards.push({ name, imageUrl, hasIpfs, pinnedMeta, pinnedImage, isLocked, contractAddress, tokenId });
     }));
 
     return res.status(200).json({
@@ -176,6 +188,7 @@ export default async function handler(req, res) {
       pinned,
       failed,
       listings,
+      nftCards,
       pinnataUrl: 'https://app.pinata.cloud/files',
       message: listings.length > 0
         ? `${listings.length} NFT(s) are locked in the Foundation marketplace contract. See 'listings' for unlist details.`

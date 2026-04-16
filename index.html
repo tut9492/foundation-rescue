@@ -202,6 +202,63 @@
     .stat.alert { background: var(--red); color: var(--white); }
     .stat.good  { background: var(--green); }
 
+    /* NFT Grid */
+    .nft-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .nft-card {
+      border: var(--border-thick);
+      background: var(--white);
+      overflow: hidden;
+    }
+
+    .nft-card img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      display: block;
+      background: var(--bg);
+    }
+
+    .nft-card .nft-info {
+      padding: 10px 12px;
+      border-top: var(--border);
+    }
+
+    .nft-card .nft-name {
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .nft-card .nft-status {
+      display: flex;
+      gap: 4px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 2px 6px;
+      border: 1px solid currentColor;
+    }
+
+    .tag.pinned  { color: #00a844; }
+    .tag.locked  { color: var(--red); }
+    .tag.no-ipfs { color: #888; }
+
     /* Listings */
     .listing {
       border: var(--border-thick);
@@ -454,8 +511,34 @@
       // Message
       document.getElementById('messageBox').textContent = data.message;
 
-      // Marketplace listings
+      // NFT Grid
       const listingsSection = document.getElementById('listingsSection');
+      if (data.nftCards && data.nftCards.length > 0) {
+        let html = `<div class="card"><h2>Your Foundation NFTs</h2><div class="nft-grid">`;
+        for (const nft of data.nftCards) {
+          const img = nft.imageUrl
+            ? `<img src="${nft.imageUrl}" alt="${nft.name}" loading="lazy" />`
+            : `<div style="aspect-ratio:1;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:11px;color:#888;font-weight:700;text-transform:uppercase">No Image</div>`;
+
+          const tags = [];
+          if (nft.pinnedMeta || nft.pinnedImage) tags.push(`<span class="tag pinned">Pinned</span>`);
+          if (nft.isLocked) tags.push(`<span class="tag locked">Locked in Market</span>`);
+          if (!nft.hasIpfs) tags.push(`<span class="tag no-ipfs">No IPFS</span>`);
+
+          html += `
+            <div class="nft-card">
+              ${img}
+              <div class="nft-info">
+                <div class="nft-name">${nft.name}</div>
+                <div class="nft-status">${tags.join('')}</div>
+              </div>
+            </div>`;
+        }
+        html += `</div></div>`;
+        listingsSection.innerHTML = html;
+      }
+
+      // Marketplace listings — append below grid
       if (data.listings.length > 0) {
         let html = `<div class="card"><h2>⚠ NFTs Locked in Foundation Marketplace</h2>`;
         for (const l of data.listings) {
@@ -479,9 +562,7 @@
           `;
         }
         html += `</div>`;
-        listingsSection.innerHTML = html;
-      } else {
-        listingsSection.innerHTML = '';
+        document.getElementById('listingsSection').innerHTML += html;
       }
 
       // Pinned CIDs
