@@ -904,6 +904,13 @@ a { color: inherit; text-decoration: none; }
 .profile-page .art-card {
   background: var(--bg);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-page .art-card .art-media,
+.profile-page .art-card .art-placeholder {
+  flex-shrink: 0;
 }
 
 .profile-page .art-card .art-media {

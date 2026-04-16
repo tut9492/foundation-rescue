@@ -59,7 +59,7 @@ export default function ProfilePage() {
           Underpin
         </Link>
         <ConnectButton
-          accountStatus="address"
+          accountStatus={{ smallScreen: "avatar", largeScreen: "address" }}
           chainStatus="none"
           showBalance={false}
         />
