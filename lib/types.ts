@@ -47,8 +47,9 @@ export type RescueResponse = {
 };
 
 export type RescueRequest = {
-  wallet: string;
+  wallet?: string;
   pinataJwt?: string;
   createdOnly?: boolean;
   contractOverride?: string;
+  contractAddress?: string;
 };

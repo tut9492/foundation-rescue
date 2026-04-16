@@ -9,9 +9,11 @@ type StatusKind = "" | "error" | "done";
 
 export default function RescuePage() {
   const [wallet, setWallet] = useState("");
+  const [contractInput, setContractInput] = useState("");
   const [pinata, setPinata] = useState("");
   const [customContract, setCustomContract] = useState("");
   const [lastWallet, setLastWallet] = useState<string | null>(null);
+  const [lastContract, setLastContract] = useState<string | null>(null);
 
   const [scanning, setScanning] = useState(false);
   const [pinning, setPinning] = useState(false);
@@ -58,6 +60,7 @@ export default function RescuePage() {
     showStatus("Scanning wallet for Foundation NFTs...");
     setData(null);
     setShowPinCard(false);
+    setLastContract(null);
 
     try {
       const json = await callRescue({ wallet: w });
@@ -75,17 +78,48 @@ export default function RescuePage() {
     }
   }
 
+  async function runContractScan() {
+    const c = contractInput.trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(c)) {
+      showStatus("Invalid contract address", "error");
+      return;
+    }
+    setScanning(true);
+    showStatus("Scanning contract for NFTs...");
+    setData(null);
+    setShowPinCard(false);
+    setLastWallet(null);
+
+    try {
+      const json = await callRescue({ contractAddress: c });
+      if (!json) return;
+      setLastContract(c);
+      showStatus("Scan complete", "done");
+      setData(json);
+      setShowUnderpinCta(true);
+      setShowMissingCard(false);
+      setShowPinCard(!!json.nftCards?.some((n) => n.hasIpfs));
+    } catch (e: any) {
+      showStatus("Network error - " + e.message, "error");
+    } finally {
+      setScanning(false);
+    }
+  }
+
   async function runPin() {
     const jwt = pinata.trim();
     if (!jwt) return showStatus("Enter your Pinata JWT first", "error");
-    if (!lastWallet) return showStatus("Scan your wallet first", "error");
+    if (!lastWallet && !lastContract) return showStatus("Run a scan first", "error");
 
     setPinning(true);
     showStatus(
       "Pinning your IPFS content to Pinata - this may take 30-60 seconds...",
     );
     try {
-      const json = await callRescue({ wallet: lastWallet, pinataJwt: jwt });
+      const body: Record<string, unknown> = { pinataJwt: jwt };
+      if (lastWallet) body.wallet = lastWallet;
+      else body.contractAddress = lastContract;
+      const json = await callRescue(body);
       if (!json) return;
       showStatus("Done - content pinned to your Pinata account", "done");
       setData(json);
@@ -149,8 +183,8 @@ export default function RescuePage() {
         </header>
 
         <div className="card">
-          <h2>Step 1 - Scan Your Wallet</h2>
-          <label htmlFor="wallet">Your Wallet Address</label>
+          <h2>Step 1 - Find Your NFTs</h2>
+          <label htmlFor="wallet">Wallet Address</label>
           <input
             type="text"
             id="wallet"
@@ -171,7 +205,36 @@ export default function RescuePage() {
                 Scanning...
               </>
             ) : (
-              "Scan Foundation NFTs"
+              "Scan Wallet"
+            )}
+          </button>
+
+          <div className="or-divider">
+            <span>or</span>
+          </div>
+
+          <label htmlFor="contractInput">Contract Address</label>
+          <input
+            type="text"
+            id="contractInput"
+            placeholder="0x..."
+            spellCheck={false}
+            value={contractInput}
+            onChange={(e) => setContractInput(e.target.value)}
+            onKeyDown={(e) => handleKeyDown(e, runContractScan)}
+          />
+          <button
+            className="primary"
+            onClick={runContractScan}
+            disabled={scanning}
+          >
+            {scanning ? (
+              <>
+                <span className="loader" />
+                Scanning...
+              </>
+            ) : (
+              "Scan Contract"
             )}
           </button>
         </div>

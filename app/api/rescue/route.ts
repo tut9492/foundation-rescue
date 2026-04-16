@@ -140,6 +140,25 @@ async function fetchNFTsForContracts(
   return nfts;
 }
 
+// Fetch all NFTs in a single contract (no wallet needed)
+async function fetchNFTsForContract(
+  contractAddress: string,
+): Promise<any[]> {
+  const nfts: any[] = [];
+  let startToken: string | undefined;
+  do {
+    const url = new URL(`${NFT_API_BASE}/getNFTsForContract`);
+    url.searchParams.set("contractAddress", contractAddress);
+    url.searchParams.set("withMetadata", "true");
+    url.searchParams.set("limit", "100");
+    if (startToken) url.searchParams.set("startToken", startToken);
+    const json = await fetchWithRetry(url.toString());
+    nfts.push(...(json.nfts || []));
+    startToken = json.nextToken;
+  } while (startToken);
+  return nfts;
+}
+
 async function pinCID(cid: string, name: string, pinataJwt: string) {
   try {
     const res = await fetch(PINATA_PIN_URL, {
@@ -178,11 +197,19 @@ export async function POST(req: NextRequest) {
   };
 
   const body = await req.json().catch(() => ({}));
-  const { wallet, pinataJwt, createdOnly, contractOverride } = body ?? {};
+  const { wallet, pinataJwt, createdOnly, contractOverride, contractAddress } = body ?? {};
 
-  if (!wallet || !/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+  const isContractMode = !wallet && contractAddress;
+
+  if (!isContractMode && (!wallet || !/^0x[a-fA-F0-9]{40}$/.test(wallet))) {
     return NextResponse.json(
       { error: "Invalid or missing wallet address" },
+      { status: 400, headers: corsHeaders },
+    );
+  }
+  if (isContractMode && !/^0x[a-fA-F0-9]{40}$/.test(contractAddress)) {
+    return NextResponse.json(
+      { error: "Invalid contract address" },
       { status: 400, headers: corsHeaders },
     );
   }
@@ -200,36 +227,47 @@ export async function POST(req: NextRequest) {
   });
 
   try {
-    // 1. Get contract list - either from wallet scan or manual override
-    let foundationAddresses: string[];
-    if (contractOverride && /^0x[a-fA-F0-9]{40}$/.test(contractOverride)) {
-      foundationAddresses = [contractOverride];
+    let foundationContracts: { address: string; created: boolean }[];
+    let nfts: any[];
+    let createdCount: number;
+    let collectedCount: number;
+
+    if (isContractMode) {
+      // Contract-only mode — fetch all NFTs in this contract
+      foundationContracts = [{ address: contractAddress, created: false }];
+      createdCount = 0;
+      collectedCount = 0;
+      nfts = await fetchNFTsForContract(contractAddress);
     } else {
-      const allAddresses = await getWalletContractAddresses(
-        wallet.toLowerCase(),
+      // Wallet mode — existing flow
+      let foundationAddresses: string[];
+      if (contractOverride && /^0x[a-fA-F0-9]{40}$/.test(contractOverride)) {
+        foundationAddresses = [contractOverride];
+      } else {
+        const allAddresses = await getWalletContractAddresses(
+          wallet.toLowerCase(),
+        );
+        foundationAddresses = filterFoundationAddresses(allAddresses);
+      }
+
+      const deployers = await getContractDeployers(foundationAddresses);
+      foundationContracts = foundationAddresses.map((addr) => ({
+        address: addr,
+        created: deployers[addr.toLowerCase()] === wallet.toLowerCase(),
+      }));
+
+      const targetContracts = createdOnly
+        ? foundationContracts.filter((c) => c.created)
+        : foundationContracts;
+
+      createdCount = foundationContracts.filter((c) => c.created).length;
+      collectedCount = foundationContracts.filter((c) => !c.created).length;
+
+      nfts = await fetchNFTsForContracts(
+        wallet,
+        targetContracts.map((c) => c.address),
       );
-      foundationAddresses = filterFoundationAddresses(allAddresses);
     }
-
-    // 2. Get deployer for each contract (created vs collected)
-    const deployers = await getContractDeployers(foundationAddresses);
-    const foundationContracts = foundationAddresses.map((addr) => ({
-      address: addr,
-      created: deployers[addr.toLowerCase()] === wallet.toLowerCase(),
-    }));
-
-    const targetContracts = createdOnly
-      ? foundationContracts.filter((c) => c.created)
-      : foundationContracts;
-
-    const createdCount = foundationContracts.filter((c) => c.created).length;
-    const collectedCount = foundationContracts.filter((c) => !c.created).length;
-
-    // 3. Fetch full NFT data only for Foundation contracts
-    const nfts = await fetchNFTsForContracts(
-      wallet,
-      targetContracts.map((c) => c.address),
-    );
 
     const pinned: any[] = [];
     const failed: any[] = [];
@@ -328,7 +366,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       {
-        wallet,
+        wallet: wallet || "",
+        contractAddress: isContractMode ? contractAddress : undefined,
         nftsFound: nfts.length,
         foundationContracts: foundationContracts.length,
         createdContracts: createdCount,
