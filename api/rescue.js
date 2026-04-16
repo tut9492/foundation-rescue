@@ -50,14 +50,14 @@ async function fetchWithRetry(url, retries = 3) {
   }
 }
 
-// Step 1: get unique contract addresses in wallet (lightweight - no NFT metadata)
+// Step 1: get unique contracts in wallet with metadata (includes contractDeployer)
 async function getWalletContracts(wallet) {
   const contracts = [];
   let pageKey = null;
   do {
     const url = new URL(`${NFT_API_BASE}/getContractsForOwner`);
     url.searchParams.set('owner', wallet);
-    url.searchParams.set('withMetadata', 'false');
+    url.searchParams.set('withMetadata', 'true');
     url.searchParams.set('pageSize', '100');
     if (pageKey) url.searchParams.set('pageKey', pageKey);
     const json = await fetchWithRetry(url.toString());
@@ -67,11 +67,14 @@ async function getWalletContracts(wallet) {
   return contracts;
 }
 
-// Step 2: filter to Foundation contracts using the on-chain derived set
-function filterFoundation(contracts) {
+// Step 2: filter to Foundation contracts, tagging each as created vs collected
+function filterFoundation(contracts, wallet) {
   return contracts
-    .map(c => c.address)
-    .filter(addr => FOUNDATION_SET.has(addr.toLowerCase()));
+    .filter(c => FOUNDATION_SET.has(c.address.toLowerCase()))
+    .map(c => ({
+      address: c.address,
+      created: c.contractDeployer?.toLowerCase() === wallet.toLowerCase(),
+    }));
 }
 
 // Step 3: fetch NFTs for specific Foundation contracts only
@@ -125,7 +128,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
-  const { wallet, pinataJwt } = req.body ?? {};
+  const { wallet, pinataJwt, createdOnly } = req.body ?? {};
 
   if (!wallet || !/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
     return res.status(400).json({ error: 'Invalid or missing wallet address' });
@@ -138,14 +141,20 @@ export default async function handler(req, res) {
   const publicClient = createPublicClient({ chain: mainnet, transport: http(RPC_URL) });
 
   try {
-    // 1. Get all unique contracts in wallet (fast, no metadata)
+    // 1. Get all unique contracts in wallet with deployer info
     const allContracts = await getWalletContracts(wallet.toLowerCase());
 
-    // 2. Filter to Foundation contracts using 95k on-chain derived set
-    const foundationContracts = filterFoundation(allContracts);
+    // 2. Filter to Foundation contracts, tag created vs collected
+    const foundationContracts = filterFoundation(allContracts, wallet);
+    const targetContracts = createdOnly
+      ? foundationContracts.filter(c => c.created)
+      : foundationContracts;
+
+    const createdCount = foundationContracts.filter(c => c.created).length;
+    const collectedCount = foundationContracts.filter(c => !c.created).length;
 
     // 3. Fetch full NFT data only for Foundation contracts
-    const nfts = await fetchNFTsForContracts(wallet, foundationContracts);
+    const nfts = await fetchNFTsForContracts(wallet, targetContracts.map(c => c.address));
 
     const pinned = [];
     const failed = [];
@@ -216,13 +225,19 @@ export default async function handler(req, res) {
         }
       } catch {}
 
-      nftCards.push({ name, imageUrl, hasIpfs, pinnedMeta, pinnedImage, isLocked, contractAddress, tokenId });
+      const isCreated = foundationContracts.find(
+        c => c.address.toLowerCase() === contractAddress.toLowerCase()
+      )?.created ?? false;
+
+      nftCards.push({ name, imageUrl, hasIpfs, pinnedMeta, pinnedImage, isLocked, isCreated, contractAddress, tokenId });
     }));
 
     return res.status(200).json({
       wallet,
       nftsFound: nfts.length,
       foundationContracts: foundationContracts.length,
+      createdContracts: createdCount,
+      collectedContracts: collectedCount,
       pinned,
       failed,
       listings,
