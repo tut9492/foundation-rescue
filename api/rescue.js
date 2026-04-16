@@ -97,12 +97,11 @@ export default async function handler(req, res) {
   if (!wallet || !/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
     return res.status(400).json({ error: 'Invalid or missing wallet address' });
   }
-  if (!pinataJwt) {
-    return res.status(400).json({ error: 'Missing pinataJwt — create a free key at pinata.cloud' });
-  }
   if (!ALCHEMY_KEY) {
     return res.status(500).json({ error: 'Server misconfigured — missing ALCHEMY_KEY' });
   }
+
+  const pinMode = !!pinataJwt;
 
   const publicClient = createPublicClient({ chain: mainnet, transport: http(RPC_URL) });
 
@@ -125,7 +124,7 @@ export default async function handler(req, res) {
       // Pin metadata CID
       const metadataCID = extractCID(nft.tokenUri);
       let pinnedMeta = false;
-      if (metadataCID) {
+      if (metadataCID && pinMode) {
         const r = await pinCID(metadataCID, `${name} — metadata`, pinataJwt);
         (r.ok ? pinned : failed).push({ ...r, name, type: 'metadata' });
         if (r.ok) pinnedMeta = true;
@@ -135,7 +134,7 @@ export default async function handler(req, res) {
       const imageUri = nft.raw?.metadata?.image || nft.image?.originalUrl;
       const imageCID = extractCID(imageUri);
       let pinnedImage = false;
-      if (imageCID && imageCID !== metadataCID) {
+      if (imageCID && imageCID !== metadataCID && pinMode) {
         const r = await pinCID(imageCID, `${name} — image`, pinataJwt);
         (r.ok ? pinned : failed).push({ ...r, name, type: 'image' });
         if (r.ok) pinnedImage = true;

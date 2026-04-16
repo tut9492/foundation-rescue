@@ -393,18 +393,21 @@
     </header>
 
     <div class="card">
-      <h2>Rescue Your Assets</h2>
-
+      <h2>Step 1 — Scan Your Wallet</h2>
       <label for="wallet">Your Wallet Address</label>
       <input type="text" id="wallet" placeholder="0x..." spellcheck="false" />
+      <button id="scanBtn" onclick="runScan()">Scan Foundation NFTs</button>
+    </div>
 
+    <div class="card" id="pinCard" style="display:none;">
+      <h2>Step 2 — Pin to Pinata (Optional)</h2>
+      <p style="font-size:13px;margin-bottom:18px;line-height:1.5;">Your IPFS content will disappear when Foundation stops pinning in ~1 year. Pin it to your own Pinata account to preserve it permanently.</p>
       <label for="pinata">Pinata JWT</label>
       <input type="password" id="pinata" placeholder="eyJhbGci..." spellcheck="false" />
       <p class="hint">
-        Get a free JWT at <a href="https://app.pinata.cloud/developers/api-keys" target="_blank">pinata.cloud → API Keys</a>. Your content is pinned to your own account — we never store your key.
+        Get a free JWT at <a href="https://app.pinata.cloud/developers/api-keys" target="_blank">pinata.cloud → API Keys</a>. Pinned to your account — we never store your key.
       </p>
-
-      <button id="rescueBtn" onclick="runRescue()">Rescue My NFTs</button>
+      <button id="pinBtn" onclick="runPin()">Pin My NFTs to Pinata</button>
     </div>
 
     <div id="status"></div>
@@ -427,33 +430,28 @@
   </div>
 
   <script>
-    async function runRescue() {
-      const wallet  = document.getElementById('wallet').value.trim();
-      const pinata  = document.getElementById('pinata').value.trim();
-      const btn     = document.getElementById('rescueBtn');
-      const status  = document.getElementById('status');
+    let lastWallet = null;
 
-      // Validate
+    async function runScan() {
+      const wallet = document.getElementById('wallet').value.trim();
+      const btn    = document.getElementById('scanBtn');
+
       if (!/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
         showStatus('Invalid wallet address', 'error');
         return;
       }
-      if (!pinata) {
-        showStatus('Pinata JWT is required', 'error');
-        return;
-      }
 
-      // Loading
       btn.disabled = true;
       btn.innerHTML = '<span class="loader"></span>Scanning...';
-      showStatus('Scanning your wallet and pinning to Pinata — this may take 30–60 seconds...', '');
+      showStatus('Scanning wallet for Foundation NFTs...', '');
       document.getElementById('results').style.display = 'none';
+      document.getElementById('pinCard').style.display = 'none';
 
       try {
         const res = await fetch('/api/rescue', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ wallet, pinataJwt: pinata }),
+          body: JSON.stringify({ wallet }),
         });
 
         const data = await res.json();
@@ -463,14 +461,64 @@
           return;
         }
 
-        showStatus('Done', 'done');
+        lastWallet = wallet;
+        showStatus('Scan complete', 'done');
         renderResults(data);
+
+        // Show pin step if there are IPFS CIDs to pin
+        const hasIpfs = data.nftCards?.some(n => n.hasIpfs);
+        if (hasIpfs) {
+          document.getElementById('pinCard').style.display = 'block';
+        }
 
       } catch (e) {
         showStatus('Network error — ' + e.message, 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Rescue My NFTs';
+        btn.textContent = 'Scan Foundation NFTs';
+      }
+    }
+
+    async function runPin() {
+      const pinata = document.getElementById('pinata').value.trim();
+      const btn    = document.getElementById('pinBtn');
+
+      if (!pinata) {
+        showStatus('Enter your Pinata JWT first', 'error');
+        return;
+      }
+      if (!lastWallet) {
+        showStatus('Scan your wallet first', 'error');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loader"></span>Pinning...';
+      showStatus('Pinning your IPFS content to Pinata — this may take 30–60 seconds...', '');
+
+      try {
+        const res = await fetch('/api/rescue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ wallet: lastWallet, pinataJwt: pinata }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          showStatus(data.error || 'Something went wrong', 'error');
+          return;
+        }
+
+        showStatus('Done — content pinned to your Pinata account', 'done');
+        renderResults(data);
+        document.getElementById('pinCard').style.display = 'none';
+
+      } catch (e) {
+        showStatus('Network error — ' + e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Pin My NFTs to Pinata';
       }
     }
 
@@ -612,7 +660,10 @@
 
     // Allow Enter key to submit
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') runRescue();
+      if (e.key === 'Enter') {
+        if (document.activeElement.id === 'pinata') runPin();
+        else runScan();
+      }
     });
   </script>
 </body>
