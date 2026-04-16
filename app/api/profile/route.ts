@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const maxDuration = 30; // Vercel: extend to 30s
+
 const ALCHEMY_KEY = process.env.ALCHEMY_KEY;
 const RPC_URL = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`;
 const NFT_API = `https://eth-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_KEY}`;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const MAX_NFTS = 100; // cap for initial load — keep response fast
 
 export interface ProfileNft {
   contractAddress: string;
@@ -21,11 +24,12 @@ export interface ProfileResponse {
   nfts: ProfileNft[];
 }
 
-// ── Step 1: get all mint events (Transfer from 0x0 to wallet) ────────────────
+// ── Step 1: get mint events (Transfer from 0x0 to wallet) ────────────────────
 
 interface MintedToken {
   contractAddress: string;
   tokenId: string;
+  tokenType: 'ERC721' | 'ERC1155';
   mintedAt?: string;
 }
 
@@ -42,7 +46,7 @@ async function getAllMints(wallet: string): Promise<MintedToken[]> {
       category: ['erc721', 'erc1155'],
       withMetadata: true,
       excludeZeroValue: true,
-      maxCount: '0x64', // 100 per page
+      maxCount: '0x64',
     };
     if (pageKey) params.pageKey = pageKey;
 
@@ -58,45 +62,45 @@ async function getAllMints(wallet: string): Promise<MintedToken[]> {
     });
 
     if (!res.ok) throw new Error(`Alchemy RPC error: ${res.status}`);
-
     const json = await res.json();
-    if (json.error) throw new Error(json.error.message || 'Alchemy error');
+    if (json.error) throw new Error(json.error.message || 'Alchemy RPC error');
 
-    const result = json.result;
-
-    for (const t of result.transfers || []) {
+    for (const t of (json.result?.transfers || [])) {
       if (!t.rawContract?.address || t.tokenId == null) continue;
 
-      // tokenId comes back as hex string — normalise to decimal string
       let tokenIdStr: string;
-      try {
-        tokenIdStr = BigInt(t.tokenId).toString();
-      } catch {
-        tokenIdStr = t.tokenId;
-      }
+      try { tokenIdStr = BigInt(t.tokenId).toString(); }
+      catch { tokenIdStr = t.tokenId; }
 
       mints.push({
         contractAddress: t.rawContract.address.toLowerCase(),
         tokenId: tokenIdStr,
+        tokenType: t.category === 'erc1155' ? 'ERC1155' : 'ERC721',
         mintedAt: t.metadata?.blockTimestamp,
       });
     }
 
-    pageKey = result.pageKey;
+    pageKey = json.result?.pageKey;
   } while (pageKey);
 
   return mints;
 }
 
-// ── Step 2: batch enrich with NFT metadata ───────────────────────────────────
+// ── Step 2: batch metadata, with graceful fallback on errors ─────────────────
 
-async function enrichWithMetadata(tokens: MintedToken[]): Promise<ProfileNft[]> {
-  const BATCH_SIZE = 100;
-  const results: ProfileNft[] = [];
+function placeholderNft(token: MintedToken): ProfileNft {
+  return {
+    contractAddress: token.contractAddress,
+    tokenId: token.tokenId,
+    name: `#${token.tokenId}`,
+    imageUrl: '',
+    contractName: '',
+    mintedAt: token.mintedAt,
+  };
+}
 
-  for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
-    const batch = tokens.slice(i, i + BATCH_SIZE);
-
+async function fetchBatch(batch: MintedToken[]): Promise<ProfileNft[]> {
+  try {
     const res = await fetch(`${NFT_API}/getNFTMetadataBatch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -104,43 +108,62 @@ async function enrichWithMetadata(tokens: MintedToken[]): Promise<ProfileNft[]> 
         tokens: batch.map((t) => ({
           contractAddress: t.contractAddress,
           tokenId: t.tokenId,
+          tokenType: t.tokenType,
         })),
       }),
     });
 
-    if (!res.ok) throw new Error(`Alchemy NFT metadata batch error: ${res.status}`);
+    // On error, split batch in half and retry each half — isolates bad tokens
+    if (!res.ok) {
+      if (batch.length === 1) return [placeholderNft(batch[0])];
+      const mid = Math.floor(batch.length / 2);
+      const [a, b] = await Promise.all([
+        fetchBatch(batch.slice(0, mid)),
+        fetchBatch(batch.slice(mid)),
+      ]);
+      return [...a, ...b];
+    }
 
     const nfts = await res.json();
 
-    for (let j = 0; j < batch.length; j++) {
+    return batch.map((token, j) => {
       const nft = nfts[j];
-      const token = batch[j];
-
       const imageUrl =
         nft?.image?.cachedUrl ||
         nft?.image?.originalUrl ||
         nft?.raw?.metadata?.image ||
         '';
-
       const contractName = nft?.contract?.name || '';
-      const tokenName =
+      const name =
         nft?.name ||
         (contractName ? `${contractName} #${token.tokenId}` : `#${token.tokenId}`);
 
-      results.push({
+      return {
         contractAddress: token.contractAddress,
         tokenId: token.tokenId,
-        name: tokenName,
+        name,
         description: nft?.description,
         imageUrl,
         contractName,
         mintedAt: token.mintedAt,
-      });
-    }
+      };
+    });
+  } catch {
+    // Network-level failure — return placeholders for this batch
+    return batch.map(placeholderNft);
+  }
+}
 
-    // Small pause between batches to be kind to rate limits
+async function enrichWithMetadata(tokens: MintedToken[]): Promise<ProfileNft[]> {
+  const BATCH_SIZE = 50; // smaller batches = fewer 500s
+  const results: ProfileNft[] = [];
+
+  for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
+    const batch = tokens.slice(i, i + BATCH_SIZE);
+    const enriched = await fetchBatch(batch);
+    results.push(...enriched);
     if (i + BATCH_SIZE < tokens.length) {
-      await new Promise((r) => setTimeout(r, 150));
+      await new Promise((r) => setTimeout(r, 100));
     }
   }
 
@@ -156,17 +179,16 @@ export async function POST(req: NextRequest) {
     if (!wallet || !/^0x[0-9a-fA-F]{40}$/i.test(wallet)) {
       return NextResponse.json({ error: 'Invalid wallet address' }, { status: 400 });
     }
-
     if (!ALCHEMY_KEY) {
       return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
     }
 
     const walletLower = wallet.toLowerCase();
 
-    // 1. Find all mint events to this wallet
+    // 1. All mints to this wallet
     const mints = await getAllMints(walletLower);
 
-    // 2. Deduplicate (some tokens get burned and reminted — keep first mint)
+    // 2. Deduplicate
     const seen = new Set<string>();
     const unique = mints.filter((m) => {
       const key = `${m.contractAddress}:${m.tokenId}`;
@@ -175,12 +197,17 @@ export async function POST(req: NextRequest) {
       return true;
     });
 
-    // 3. Enrich with metadata
-    const nfts = await enrichWithMetadata(unique);
+    const totalMinted = unique.length;
+
+    // 3. Cap at most recent MAX_NFTS for this response
+    const toEnrich = unique.slice(0, MAX_NFTS);
+
+    // 4. Enrich
+    const nfts = await enrichWithMetadata(toEnrich);
 
     return NextResponse.json({
       wallet: walletLower,
-      totalMinted: nfts.length,
+      totalMinted,
       nfts,
     } satisfies ProfileResponse);
   } catch (e: unknown) {
