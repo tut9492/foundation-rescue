@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import type { ProfileNft, ProfileResponse } from "@/app/api/profile/route";
+import type { ProfileNft, ProfileResponse, ProfileIdentity } from "@/app/api/profile/route";
 import { TutLogo } from "@/components/TutLogo";
 
 export default function ProfilePage() {
@@ -68,14 +68,14 @@ export default function ProfilePage() {
           <ProfileLanding />
         ) : loading ? (
           <HeroShell address={address!}>
-            <div className="loading">Scanning your on-chain work…</div>
+            <div className="loading">Scanning on-chain Foundation activity…</div>
           </HeroShell>
         ) : error ? (
           <HeroShell address={address!}>
             <div className="error">Could not load your art: {error}</div>
           </HeroShell>
         ) : data ? (
-          <HeroShell address={address!}>
+          <HeroShell address={address!} identity={data.identity}>
             <div className="stats">
               <span>
                 <strong>{data.totalMinted}</strong>
@@ -87,7 +87,7 @@ export default function ProfilePage() {
               <ArtGrid nfts={data.nfts} />
             ) : (
               <div className="empty">
-                <p>No NFTs minted from this wallet.</p>
+                <p>No Foundation NFTs minted from this wallet.</p>
                 <Link href="/" className="btn-secondary">
                   Back to Rescue Tool
                 </Link>
@@ -133,25 +133,47 @@ function ProfileLanding() {
 
 function HeroShell({
   address,
+  identity,
   children,
 }: {
   address: string;
+  identity?: ProfileIdentity;
   children: React.ReactNode;
 }) {
+  const displayName = identity?.displayName ?? `${address.slice(0, 6)}…${address.slice(-4)}`;
+  const shortAddr = `${address.slice(0, 6)}…${address.slice(-4)}`;
+
   return (
     <>
       <section className="profile-hero">
-        <h1>
-          Your art,
-          <br />
-          <em>your page.</em>
-        </h1>
-        <p>
-          Everything you&apos;ve ever minted.{" "}
-          <span style={{ fontFamily: "monospace", opacity: 0.6 }}>
-            {address.slice(0, 6)}…{address.slice(-4)}
-          </span>
-        </p>
+        <div className="profile-identity">
+          {identity?.avatarUrl && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              className="profile-avatar"
+              src={identity.avatarUrl}
+              alt={displayName}
+            />
+          )}
+          <div>
+            <h1>
+              {identity?.ensName ? (
+                <>{identity.ensName}</>
+              ) : (
+                <>
+                  Your art,
+                  <br />
+                  <em>your page.</em>
+                </>
+              )}
+            </h1>
+            <p>
+              {identity?.ensName
+                ? `Foundation works by ${shortAddr}`
+                : `Everything minted on Foundation. ${shortAddr}`}
+            </p>
+          </div>
+        </div>
       </section>
       {children}
     </>
