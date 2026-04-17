@@ -2,7 +2,7 @@
  * CID lookup from the Foundation IPFS CIDs dataset (343k tokens).
  * Loaded once at cold start, cached for the lifetime of the function instance.
  *
- * Data source: https://github.com/networked-art/foundation-ipfs-cids (CC0)
+ * Data: @jwahdatehagh — https://github.com/networked-art/foundation-ipfs-cids (CC0)
  */
 import { readFileSync, existsSync } from "fs";
 import path from "path";

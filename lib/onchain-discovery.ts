@@ -1,13 +1,12 @@
 /**
  * On-demand artist token discovery via direct RPC calls.
+ * Adapted from ripe0x/pin (MIT) — https://github.com/ripe0x/pin
  *
  * Finds all tokens an artist minted on Foundation — both the shared NFT
  * contract and per-artist collection contracts deployed via the
  * NFTCollectionFactory.
  *
  * No indexer dependency — works with just an RPC endpoint + IPFS gateways.
- *
- * Adapted from ripe0x/pin (MIT).
  */
 import {
   createPublicClient,

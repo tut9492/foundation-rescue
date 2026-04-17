@@ -164,7 +164,13 @@ No CSS framework. The rescue tool is brutalist (light, thick borders, color-code
 
 ## Acknowledgments
 
-On-chain discovery layer (`lib/abi.ts`, `lib/addresses.ts`, `lib/ipfs.ts`, `lib/onchain-discovery.ts`) adapted from [ripe0x/pin](https://github.com/ripe0x/pin) by [@ripe0x](https://github.com/ripe0x) — a tool for discovering Foundation artists and preserving their work on IPFS. MIT licensed.
+This project builds on work by builders who open-sourced their tools for the community:
+
+**[@ripe0x](https://github.com/ripe0x)** — [pin](https://github.com/ripe0x/pin). On-chain discovery layer that scans Foundation's contracts directly via RPC. We adapted the ABIs, IPFS utilities, contract addresses, and event scanning logic. MIT licensed.
+
+**[@jwahdatehagh](https://github.com/jwahdatehagh)** (Jalil Wahdatehagh) — [foundation-ipfs-cids](https://github.com/networked-art/foundation-ipfs-cids). 343,194 Foundation tokens with pre-resolved IPFS CIDs — metadata, images, and animations. This dataset is what makes complete preservation possible. CC0.
+
+**[4EVERLAND](https://4everland.org)** — Free-tier IPFS pinning with pin-by-CID support, enabling artists to preserve their work without paying for a pinning service.
 
 ---
 
