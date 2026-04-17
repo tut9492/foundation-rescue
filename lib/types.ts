@@ -34,6 +34,7 @@ export type PinResult = {
 
 export type RescueResponse = {
   wallet: string;
+  contractAddress?: string;
   nftsFound: number;
   foundationContracts: number;
   createdContracts: number;

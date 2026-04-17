@@ -1,163 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http, parseAbi } from "viem";
 import { mainnet } from "viem/chains";
-import { readFileSync } from "fs";
-import path from "path";
+import { extractCid } from "@/lib/ipfs";
+import { FOUNDATION_NFT, NFT_MARKET } from "@/lib/addresses";
+import { filterFoundationAddresses } from "@/lib/foundation-set";
+import {
+  getRpcUrl,
+  getWalletContractAddresses,
+  getContractDeployers,
+  fetchNFTsForContracts,
+  fetchNFTsForContract,
+  sleep,
+} from "@/lib/alchemy";
 
-// Vercel serverless function config
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const ALCHEMY_KEY = process.env.ALCHEMY_KEY;
-const RPC_URL = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`;
-const NFT_API_BASE = `https://eth-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_KEY}`;
 const PINATA_PIN_URL = "https://api.pinata.cloud/v3/files/public/pin_by_cid";
-
-const FOUNDATION_MARKET = "0xcDA72070E455bb31C7690a170224Ce43623d0B6f";
-const FOUNDATION_NFT721 = "0x3B3ee1931Dc30C1957379FAc9aba94D1C48a5405";
-
-// Load the complete set of Foundation collection contracts (95k addresses,
-// enumerated from Factory V1 + V2 creation events via Etherscan).
-// Loaded once at cold start, cached for the lifetime of the function instance.
-let FOUNDATION_SET: Set<string> | null = null;
-
-function getFoundationSet(): Set<string> {
-  if (FOUNDATION_SET) return FOUNDATION_SET;
-  const filePath = path.join(
-    process.cwd(),
-    "foundation-contracts-list.json",
-  );
-  const list: string[] = JSON.parse(readFileSync(filePath, "utf8"));
-  const set = new Set(list.map((a) => a.toLowerCase()));
-  set.add(FOUNDATION_NFT721.toLowerCase()); // shared early-mint contract
-  FOUNDATION_SET = set;
-  return set;
-}
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 const marketAbi = parseAbi([
   "function getBuyPrice(address nftContract, uint256 tokenId) view returns (address seller, uint256 price)",
   "function getReserveAuctionIdFor(address nftContract, uint256 tokenId) view returns (uint256 auctionId)",
 ]);
-
-function extractCID(uri: string | null | undefined): string | null {
-  if (!uri) return null;
-  const ipfs = uri.match(/ipfs:\/\/([a-zA-Z0-9]+)/);
-  if (ipfs) return ipfs[1];
-  const gateway = uri.match(/\/ipfs\/([a-zA-Z0-9]+)/);
-  if (gateway) return gateway[1];
-  return null;
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function fetchWithRetry(url: string, retries = 3): Promise<any> {
-  for (let i = 0; i < retries; i++) {
-    const res = await fetch(url);
-    if (res.ok) return res.json();
-    const body = await res.text();
-    console.error(`[Alchemy] ${res.status} attempt ${i + 1}:`, body);
-    if (res.status === 400) throw new Error("Invalid wallet address or request");
-    if (i < retries - 1) await sleep(1000 * (i + 1));
-    else
-      throw new Error(
-        `Alchemy returned ${res.status} after ${retries} attempts. Try again in a moment.`,
-      );
-  }
-}
-
-// Step 1: get all unique contract addresses in wallet
-// (withMetadata=false avoids an Alchemy pageKey bug)
-async function getWalletContractAddresses(wallet: string): Promise<string[]> {
-  const addresses: string[] = [];
-  let pageKey: string | undefined;
-  do {
-    const url = new URL(`${NFT_API_BASE}/getContractsForOwner`);
-    url.searchParams.set("owner", wallet);
-    url.searchParams.set("withMetadata", "false");
-    url.searchParams.set("pageSize", "100");
-    if (pageKey) url.searchParams.set("pageKey", pageKey);
-    const json = await fetchWithRetry(url.toString());
-    addresses.push(...(json.contracts || []).map((c: any) => c.address));
-    pageKey = json.pageKey;
-  } while (pageKey);
-  return addresses;
-}
-
-function filterFoundationAddresses(addresses: string[]): string[] {
-  const set = getFoundationSet();
-  return addresses.filter((a) => set.has(a.toLowerCase()));
-}
-
-async function getContractDeployers(
-  addresses: string[],
-): Promise<Record<string, string>> {
-  const deployers: Record<string, string> = {};
-  const BATCH = 5;
-  for (let i = 0; i < addresses.length; i += BATCH) {
-    const chunk = addresses.slice(i, i + BATCH);
-    await Promise.all(
-      chunk.map(async (addr) => {
-        const url = new URL(`${NFT_API_BASE}/getContractMetadata`);
-        url.searchParams.set("contractAddress", addr);
-        try {
-          const json = await fetchWithRetry(url.toString());
-          deployers[addr.toLowerCase()] =
-            (json.contractDeployer || "").toLowerCase();
-        } catch {
-          deployers[addr.toLowerCase()] = "";
-        }
-      }),
-    );
-    if (i + BATCH < addresses.length) await sleep(200);
-  }
-  return deployers;
-}
-
-async function fetchNFTsForContracts(
-  wallet: string,
-  contractAddresses: string[],
-): Promise<any[]> {
-  if (contractAddresses.length === 0) return [];
-  const nfts: any[] = [];
-  // Alchemy accepts up to 45 contractAddresses[] per call
-  const CHUNK = 45;
-  for (let i = 0; i < contractAddresses.length; i += CHUNK) {
-    const chunk = contractAddresses.slice(i, i + CHUNK);
-    let pageKey: string | undefined;
-    do {
-      const url = new URL(`${NFT_API_BASE}/getNFTsForOwner`);
-      url.searchParams.set("owner", wallet);
-      url.searchParams.set("withMetadata", "true");
-      url.searchParams.set("pageSize", "100");
-      chunk.forEach((c) => url.searchParams.append("contractAddresses[]", c));
-      if (pageKey) url.searchParams.set("pageKey", pageKey);
-      const json = await fetchWithRetry(url.toString());
-      nfts.push(...(json.ownedNfts || []));
-      pageKey = json.pageKey;
-    } while (pageKey);
-    if (i + CHUNK < contractAddresses.length) await sleep(100);
-  }
-  return nfts;
-}
-
-// Fetch all NFTs in a single contract (no wallet needed)
-async function fetchNFTsForContract(
-  contractAddress: string,
-): Promise<any[]> {
-  const nfts: any[] = [];
-  let startToken: string | undefined;
-  do {
-    const url = new URL(`${NFT_API_BASE}/getNFTsForContract`);
-    url.searchParams.set("contractAddress", contractAddress);
-    url.searchParams.set("withMetadata", "true");
-    url.searchParams.set("limit", "100");
-    if (startToken) url.searchParams.set("startToken", startToken);
-    const json = await fetchWithRetry(url.toString());
-    nfts.push(...(json.nfts || []));
-    startToken = json.nextToken;
-  } while (startToken);
-  return nfts;
-}
 
 async function pinCID(cid: string, name: string, pinataJwt: string) {
   try {
@@ -173,7 +39,6 @@ async function pinCID(cid: string, name: string, pinataJwt: string) {
     if (res.ok) {
       return { ok: true, cid, status: json.data?.status ?? "queued" };
     }
-    // Pinata error can be a string, object, or number — always coerce to string
     const errMsg =
       typeof json.error === "string"
         ? json.error
@@ -203,7 +68,8 @@ export async function POST(req: NextRequest) {
   };
 
   const body = await req.json().catch(() => ({}));
-  const { wallet, pinataJwt, createdOnly, contractOverride, contractAddress } = body ?? {};
+  const { wallet, pinataJwt, createdOnly, contractOverride, contractAddress } =
+    body ?? {};
 
   const isContractMode = !wallet && contractAddress;
 
@@ -229,7 +95,7 @@ export async function POST(req: NextRequest) {
   const pinMode = !!pinataJwt;
   const publicClient = createPublicClient({
     chain: mainnet,
-    transport: http(RPC_URL),
+    transport: http(getRpcUrl()),
   });
 
   try {
@@ -239,13 +105,11 @@ export async function POST(req: NextRequest) {
     let collectedCount: number;
 
     if (isContractMode) {
-      // Contract-only mode — fetch all NFTs in this contract
       foundationContracts = [{ address: contractAddress, created: false }];
       createdCount = 0;
       collectedCount = 0;
       nfts = await fetchNFTsForContract(contractAddress);
     } else {
-      // Wallet mode — existing flow
       let foundationAddresses: string[];
       if (contractOverride && /^0x[a-fA-F0-9]{40}$/.test(contractOverride)) {
         foundationAddresses = [contractOverride];
@@ -280,95 +144,103 @@ export async function POST(req: NextRequest) {
     const listings: any[] = [];
     const nftCards: any[] = [];
 
-    // 4. Process each NFT
-    await Promise.all(
-      nfts.map(async (nft) => {
-        const contractAddress = nft.contract.address;
-        const tokenId = nft.tokenId;
-        const name = nft.name || nft.contract.name || `Token #${tokenId}`;
-        const imageUrl =
-          nft.image?.cachedUrl ||
-          nft.image?.originalUrl ||
-          nft.raw?.metadata?.image ||
-          null;
+    // Process NFTs in chunks to avoid rate limits
+    const NFT_CHUNK = 20;
+    for (let i = 0; i < nfts.length; i += NFT_CHUNK) {
+      const chunk = nfts.slice(i, i + NFT_CHUNK);
 
-        // Pin metadata CID
-        const metadataCID = extractCID(nft.tokenUri);
-        let pinnedMeta = false;
-        if (metadataCID && pinMode) {
-          const r = await pinCID(metadataCID, `${name} - metadata`, pinataJwt);
-          (r.ok ? pinned : failed).push({ ...r, name, type: "metadata" });
-          if (r.ok) pinnedMeta = true;
-        }
+      await Promise.all(
+        chunk.map(async (nft) => {
+          const nftContract = nft.contract.address;
+          const tokenId = nft.tokenId;
+          const name = nft.name || nft.contract.name || `Token #${tokenId}`;
+          const imageUrl =
+            nft.image?.cachedUrl ||
+            nft.image?.originalUrl ||
+            nft.raw?.metadata?.image ||
+            null;
 
-        // Pin image CID
-        const imageUri = nft.raw?.metadata?.image || nft.image?.originalUrl;
-        const imageCID = extractCID(imageUri);
-        let pinnedImage = false;
-        if (imageCID && imageCID !== metadataCID && pinMode) {
-          const r = await pinCID(imageCID, `${name} - image`, pinataJwt);
-          (r.ok ? pinned : failed).push({ ...r, name, type: "image" });
-          if (r.ok) pinnedImage = true;
-        }
-
-        const hasIpfs = !!(metadataCID || imageCID);
-
-        // Check marketplace
-        let isLocked = false;
-        let auctionId: number | null = null;
-        try {
-          const [seller] = (await publicClient.readContract({
-            address: FOUNDATION_MARKET as `0x${string}`,
-            abi: marketAbi,
-            functionName: "getBuyPrice",
-            args: [contractAddress as `0x${string}`, BigInt(tokenId)],
-          })) as [string, bigint];
-          if (seller !== "0x0000000000000000000000000000000000000000") {
-            isLocked = true;
-            try {
-              const id = (await publicClient.readContract({
-                address: FOUNDATION_MARKET as `0x${string}`,
-                abi: marketAbi,
-                functionName: "getReserveAuctionIdFor",
-                args: [contractAddress as `0x${string}`, BigInt(tokenId)],
-              })) as bigint;
-              if (Number(id) > 0) auctionId = Number(id);
-            } catch {}
-
-            listings.push({
-              name,
-              contractAddress,
-              tokenId,
-              auctionId,
-              unlockMethod: auctionId
-                ? "cancelReserveAuction"
-                : "cancelBuyPrice",
-              calldata: auctionId
-                ? `cancelReserveAuction(${auctionId})`
-                : `cancelBuyPrice(${contractAddress}, ${tokenId})`,
-              marketContract: FOUNDATION_MARKET,
-            });
+          const metadataCID = extractCid(nft.tokenUri ?? "");
+          let pinnedMeta = false;
+          if (metadataCID && pinMode) {
+            const r = await pinCID(
+              metadataCID,
+              `${name} - metadata`,
+              pinataJwt,
+            );
+            (r.ok ? pinned : failed).push({ ...r, name, type: "metadata" });
+            if (r.ok) pinnedMeta = true;
           }
-        } catch {}
 
-        const isCreated =
-          foundationContracts.find(
-            (c) => c.address.toLowerCase() === contractAddress.toLowerCase(),
-          )?.created ?? false;
+          const imageUri = nft.raw?.metadata?.image || nft.image?.originalUrl;
+          const imageCID = extractCid(imageUri ?? "");
+          let pinnedImage = false;
+          if (imageCID && imageCID !== metadataCID && pinMode) {
+            const r = await pinCID(imageCID, `${name} - image`, pinataJwt);
+            (r.ok ? pinned : failed).push({ ...r, name, type: "image" });
+            if (r.ok) pinnedImage = true;
+          }
 
-        nftCards.push({
-          name,
-          imageUrl,
-          hasIpfs,
-          pinnedMeta,
-          pinnedImage,
-          isLocked,
-          isCreated,
-          contractAddress,
-          tokenId,
-        });
-      }),
-    );
+          const hasIpfs = !!(metadataCID || imageCID);
+
+          let isLocked = false;
+          let auctionId: number | null = null;
+          try {
+            const [seller] = (await publicClient.readContract({
+              address: NFT_MARKET as `0x${string}`,
+              abi: marketAbi,
+              functionName: "getBuyPrice",
+              args: [nftContract as `0x${string}`, BigInt(tokenId)],
+            })) as [string, bigint];
+            if (seller !== ZERO_ADDRESS) {
+              isLocked = true;
+              try {
+                const id = (await publicClient.readContract({
+                  address: NFT_MARKET as `0x${string}`,
+                  abi: marketAbi,
+                  functionName: "getReserveAuctionIdFor",
+                  args: [nftContract as `0x${string}`, BigInt(tokenId)],
+                })) as bigint;
+                if (Number(id) > 0) auctionId = Number(id);
+              } catch {}
+
+              listings.push({
+                name,
+                contractAddress: nftContract,
+                tokenId,
+                auctionId,
+                unlockMethod: auctionId
+                  ? "cancelReserveAuction"
+                  : "cancelBuyPrice",
+                calldata: auctionId
+                  ? `cancelReserveAuction(${auctionId})`
+                  : `cancelBuyPrice(${nftContract}, ${tokenId})`,
+                marketContract: NFT_MARKET,
+              });
+            }
+          } catch {}
+
+          const isCreated =
+            foundationContracts.find(
+              (c) => c.address.toLowerCase() === nftContract.toLowerCase(),
+            )?.created ?? false;
+
+          nftCards.push({
+            name,
+            imageUrl,
+            hasIpfs,
+            pinnedMeta,
+            pinnedImage,
+            isLocked,
+            isCreated,
+            contractAddress: nftContract,
+            tokenId,
+          });
+        }),
+      );
+
+      if (i + NFT_CHUNK < nfts.length) await sleep(500);
+    }
 
     return NextResponse.json(
       {

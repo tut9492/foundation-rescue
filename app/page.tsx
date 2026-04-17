@@ -162,9 +162,9 @@ export default function RescuePage() {
   async function copyCalldata(text: string) {
     try {
       await navigator.clipboard.writeText(text);
-      alert("Copied to clipboard");
+      showStatus("Copied to clipboard", "done");
     } catch {
-      alert("Could not copy");
+      showStatus("Could not copy to clipboard", "error");
     }
   }
 
@@ -297,7 +297,7 @@ export default function RescuePage() {
         )}
 
         {statusVisible && (
-          <div className={`status ${statusKind}`}>{statusMsg}</div>
+          <div className={`status ${statusKind}`} role="alert">{statusMsg}</div>
         )}
 
         {showMissingCard && (
