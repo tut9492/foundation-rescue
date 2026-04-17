@@ -107,7 +107,7 @@ export default function RescuePage() {
       const json = await callRescue({ wallet: w });
       if (!json) return;
       setLastWallet(w);
-      showStatus("Scan complete — resolving CIDs...", "done");
+      showStatus("Scan complete", "done");
       setData(json);
       setShowUnderpinCta(true);
       setShowMissingCard(json.nftsFound === 0);
@@ -136,7 +136,7 @@ export default function RescuePage() {
       const json = await callRescue({ contractAddress: c });
       if (!json) return;
       setLastContract(c);
-      showStatus("Scan complete — resolving CIDs...", "done");
+      showStatus("Scan complete", "done");
       setData(json);
       setShowUnderpinCta(true);
       setShowMissingCard(false);

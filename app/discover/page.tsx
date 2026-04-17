@@ -18,14 +18,18 @@ type Stats = {
 export default function DiscoverPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [search, setSearch] = useState("");
   const router = useRouter();
 
   useEffect(() => {
     fetch("/api/stats")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
       .then((data) => setStats(data))
-      .catch(() => {})
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
 
@@ -79,6 +83,8 @@ export default function DiscoverPage() {
 
         {loading ? (
           <div className="discover-loading">Loading stats...</div>
+        ) : error ? (
+          <div className="discover-loading">Could not load stats. Try refreshing.</div>
         ) : stats ? (
           <>
             <div className="discover-stats">

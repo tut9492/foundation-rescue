@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-This project includes code adapted from the following open-source projects.
+This project includes code and data from the following open-source projects.
 
 ---
 
@@ -39,3 +39,18 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+---
+
+## Foundation IPFS CIDs
+
+**Source:** https://github.com/networked-art/foundation-ipfs-cids
+**Author:** [@jwahdatehagh](https://github.com/jwahdatehagh) (Jalil Wahdatehagh)
+**License:** CC0 (Public Domain)
+
+**Usage:**
+- `token-cids.csv` — 343,194 Foundation tokens with resolved IPFS CIDs (metadata, image, animation)
+- Downloaded at build time via `scripts/fetch-cids.mjs`
+- Powers the `/api/cids` lookup endpoint and the `/discover` stats page
+
+This dataset is derived from public on-chain data and released under CC0.

@@ -10,9 +10,13 @@ Everything is open source. Fork it, build on it, make it yours.
 
 ## What's in this repo
 
-**Foundation Rescue** (`/`) — the tool that got us here. Paste a wallet or a contract address, find your Foundation NFTs, pin your IPFS content to your own Pinata account, get the calldata to unlist anything stuck in Foundation's marketplace contract.
+**Foundation Rescue** (`/`) — paste a wallet or contract address, find your Foundation NFTs, pin your IPFS content to your own account (4EVERLAND free or Pinata), get the calldata to unlist anything stuck in Foundation's marketplace contract. Pinning happens entirely in your browser — your API key never touches our server.
 
-**Profile** (`/profile`) — connect your wallet, see your Foundation art with ENS identity resolution. The beginning of your decentralized artist page.
+**Discover** (`/discover`) — 28,359 Foundation artists. 343,194 works. All searchable. Browse top artists, search by wallet or ENS name, jump to any artist's public page.
+
+**Artist Pages** (`/artist/[address]`) — public, server-rendered, shareable. ENS identity resolution, video NFT support, OG tags for social sharing. No wallet connection needed.
+
+**Profile** (`/profile`) — connect your wallet, see your Foundation art with ENS identity resolution.
 
 **Underpin** (`/underpin`) — the vision. A decentralized, open-source marketplace. No company behind it. Fork it. Run it. Own it.
 
