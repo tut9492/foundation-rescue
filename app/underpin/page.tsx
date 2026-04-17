@@ -16,7 +16,7 @@ export default function UnderpinPage() {
           <a href="#vision">Vision</a>
           <a href="#principles">Principles</a>
           <a href="#build">Build</a>
-          <Link href="/discover">Discover</Link>
+          <Link href="/discover" className="cta">Discover</Link>
           <Link href="/profile" className="cta">
             Your Profile
           </Link>
