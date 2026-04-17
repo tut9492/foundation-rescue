@@ -166,27 +166,33 @@ export default function RescuePage() {
     // Save provider for next time
     saveProvider(selectedProvider, key);
 
-    // Collect all CIDs to pin from the dataset
+    // Collect all CIDs to pin — from API response, enhanced by dataset
     const toPinList: { cid: string; name: string; type: "metadata" | "image" }[] = [];
+    const seen = new Set<string>();
+
     for (const nft of data.nftCards) {
       const key = `${nft.contractAddress.toLowerCase()}:${nft.tokenId}`;
       const resolved = cidMap[key];
 
-      if (resolved) {
-        // Full CID data from the Foundation IPFS CIDs dataset
-        if (resolved.metadataCid) {
-          toPinList.push({ cid: resolved.metadataCid, name: `${nft.name} - metadata`, type: "metadata" });
-        }
-        if (resolved.imageCid) {
-          toPinList.push({ cid: resolved.imageCid, name: `${nft.name} - image`, type: "image" });
-        }
-        if (resolved.animationCid) {
-          toPinList.push({ cid: resolved.animationCid, name: `${nft.name} - animation`, type: "image" });
-        }
-      } else if (nft.imageUrl) {
-        // Fallback: extract from image URL
-        const cid = extractCid(nft.imageUrl);
-        if (cid) toPinList.push({ cid, name: `${nft.name} - image`, type: "image" });
+      // 1. Metadata CID — from API or dataset
+      const metaCid = nft.metadataCid || resolved?.metadataCid;
+      if (metaCid && !seen.has(metaCid)) {
+        seen.add(metaCid);
+        toPinList.push({ cid: metaCid, name: `${nft.name} - metadata`, type: "metadata" });
+      }
+
+      // 2. Image CID — from API or dataset
+      const imgCid = nft.imageCid || resolved?.imageCid;
+      if (imgCid && !seen.has(imgCid)) {
+        seen.add(imgCid);
+        toPinList.push({ cid: imgCid, name: `${nft.name} - image`, type: "image" });
+      }
+
+      // 3. Animation CID — only from dataset
+      const animCid = resolved?.animationCid;
+      if (animCid && !seen.has(animCid)) {
+        seen.add(animCid);
+        toPinList.push({ cid: animCid, name: `${nft.name} - animation`, type: "image" });
       }
     }
 

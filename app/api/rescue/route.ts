@@ -235,6 +235,8 @@ export async function POST(req: NextRequest) {
             isCreated,
             contractAddress: nftContract,
             tokenId,
+            metadataCid: metadataCID || "",
+            imageCid: imageCID || "",
           });
         }),
       );

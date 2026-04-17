@@ -11,6 +11,8 @@ export type NftCard = {
   isCreated: boolean;
   contractAddress: string;
   tokenId: string;
+  metadataCid: string;
+  imageCid: string;
 };
 
 export type MarketplaceListing = {
