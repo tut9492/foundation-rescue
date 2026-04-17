@@ -61,6 +61,36 @@ export default function UnderpinPage() {
         </div>
       </section>
 
+      {/* Feature cards */}
+      <section className="section">
+        <div className="feature-grid">
+          <div className="feature-card">
+            <div className="feature-num">28,359</div>
+            <h3>Artists. Discoverable.</h3>
+            <p>
+              343,194 works minted on Foundation — all searchable. Find any
+              artist by wallet or ENS name. Public pages, shareable links,
+              no wallet needed.
+            </p>
+            <Link href="/discover" className="btn-primary">
+              Discover Artists
+            </Link>
+          </div>
+          <div className="feature-card">
+            <div className="feature-num">Yours</div>
+            <h3>Your Art. Your Page.</h3>
+            <p>
+              Connect your wallet to see everything you&apos;ve minted on
+              Foundation. Your profile, your gallery, your collector
+              relationships — owned by you.
+            </p>
+            <Link href="/profile" className="btn-primary">
+              Your Profile
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* Why */}
       <section className="section" id="vision">
         <p className="section-label">The Problem</p>
