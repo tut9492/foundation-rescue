@@ -29,6 +29,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# large data files (fetched separately)
+token-cids.csv
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

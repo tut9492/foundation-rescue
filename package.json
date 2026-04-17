@@ -6,6 +6,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/fetch-cids.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

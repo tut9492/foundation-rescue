@@ -34,6 +34,7 @@ export default function RescuePage() {
   const [statusVisible, setStatusVisible] = useState(false);
 
   const [data, setData] = useState<RescueResponse | null>(null);
+  const [cidMap, setCidMap] = useState<Record<string, any>>({});
   const [showPinCard, setShowPinCard] = useState(false);
   const [showMissingCard, setShowMissingCard] = useState(false);
   const [showUnderpinCta, setShowUnderpinCta] = useState(false);
@@ -70,6 +71,26 @@ export default function RescuePage() {
     [],
   );
 
+  async function fetchCids(nftCards: NftCard[]) {
+    try {
+      const tokens = nftCards.map((n) => ({
+        collection: n.contractAddress,
+        tokenId: n.tokenId,
+      }));
+      const res = await fetch("/api/cids", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tokens }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setCidMap(json.cids || {});
+      }
+    } catch {
+      // CID lookup is best-effort — pinning still works without it
+    }
+  }
+
   async function runScan() {
     const w = wallet.trim();
     if (!/^0x[a-fA-F0-9]{40}$/.test(w)) {
@@ -86,11 +107,12 @@ export default function RescuePage() {
       const json = await callRescue({ wallet: w });
       if (!json) return;
       setLastWallet(w);
-      showStatus("Scan complete", "done");
+      showStatus("Scan complete — resolving CIDs...", "done");
       setData(json);
       setShowUnderpinCta(true);
       setShowMissingCard(json.nftsFound === 0);
-      setShowPinCard(!!json.nftCards?.some((n) => n.hasIpfs));
+      setShowPinCard(json.nftCards?.length > 0);
+      await fetchCids(json.nftCards);
     } catch (e: any) {
       showStatus("Network error - " + e.message, "error");
     } finally {
@@ -114,11 +136,12 @@ export default function RescuePage() {
       const json = await callRescue({ contractAddress: c });
       if (!json) return;
       setLastContract(c);
-      showStatus("Scan complete", "done");
+      showStatus("Scan complete — resolving CIDs...", "done");
       setData(json);
       setShowUnderpinCta(true);
       setShowMissingCard(false);
-      setShowPinCard(!!json.nftCards?.some((n) => n.hasIpfs));
+      setShowPinCard(json.nftCards?.length > 0);
+      await fetchCids(json.nftCards);
     } catch (e: any) {
       showStatus("Network error - " + e.message, "error");
     } finally {
@@ -143,13 +166,25 @@ export default function RescuePage() {
     // Save provider for next time
     saveProvider(selectedProvider, key);
 
-    // Collect all CIDs to pin
+    // Collect all CIDs to pin from the dataset
     const toPinList: { cid: string; name: string; type: "metadata" | "image" }[] = [];
     for (const nft of data.nftCards) {
-      if (!nft.hasIpfs) continue;
-      // We need the raw token data to extract CIDs — re-extract from image URLs
-      // The NFT cards don't store CIDs directly, so we check the image URL
-      if (nft.imageUrl) {
+      const key = `${nft.contractAddress.toLowerCase()}:${nft.tokenId}`;
+      const resolved = cidMap[key];
+
+      if (resolved) {
+        // Full CID data from the Foundation IPFS CIDs dataset
+        if (resolved.metadataCid) {
+          toPinList.push({ cid: resolved.metadataCid, name: `${nft.name} - metadata`, type: "metadata" });
+        }
+        if (resolved.imageCid) {
+          toPinList.push({ cid: resolved.imageCid, name: `${nft.name} - image`, type: "image" });
+        }
+        if (resolved.animationCid) {
+          toPinList.push({ cid: resolved.animationCid, name: `${nft.name} - animation`, type: "image" });
+        }
+      } else if (nft.imageUrl) {
+        // Fallback: extract from image URL
         const cid = extractCid(nft.imageUrl);
         if (cid) toPinList.push({ cid, name: `${nft.name} - image`, type: "image" });
       }
