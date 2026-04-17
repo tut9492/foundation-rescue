@@ -378,7 +378,7 @@ export default function RescuePage() {
             </div>
 
             <label htmlFor="apiKey">
-              {PROVIDERS.find((p) => p.id === selectedProvider)?.name} API Key
+              {PROVIDERS.find((p) => p.id === selectedProvider)?.name} Access Token
             </label>
             <input
               type="password"
@@ -392,7 +392,7 @@ export default function RescuePage() {
               onKeyDown={(e) => handleKeyDown(e, runPin)}
             />
             <p className="hint">
-              Get a key at{" "}
+              {PROVIDERS.find((p) => p.id === selectedProvider)?.helpText}{" — "}
               <a
                 href={
                   PROVIDERS.find((p) => p.id === selectedProvider)?.helpUrl
@@ -400,8 +400,7 @@ export default function RescuePage() {
                 target="_blank"
                 rel="noopener"
               >
-                {PROVIDERS.find((p) => p.id === selectedProvider)?.name} →
-                Dashboard
+                Open dashboard
               </a>
             </p>
 

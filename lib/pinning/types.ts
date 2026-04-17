@@ -24,6 +24,7 @@ export type ProviderConfig = {
   description: string;
   placeholder: string;
   helpUrl: string;
+  helpText: string;
   /** false = provider is temporarily unavailable */
   enabled: boolean;
 };
@@ -33,8 +34,9 @@ export const PROVIDERS: ProviderConfig[] = [
     id: "4everland",
     name: "4EVERLAND",
     description: "Free tier includes 6 GB. Pin-by-CID supported on free plan.",
-    placeholder: "Your 4EVERLAND API key",
-    helpUrl: "https://dashboard.4everland.org",
+    placeholder: "Your 4EVER Pin access token",
+    helpUrl: "https://dashboard.4everland.org/bucket/4ever-pin",
+    helpText: "Go to 4EVER Pin → click 'Access Token' in the top right",
     enabled: true,
   },
   {
@@ -44,6 +46,7 @@ export const PROVIDERS: ProviderConfig[] = [
       "Pin-by-CID requires the Picnic plan ($20/mo). Free tier will fail.",
     placeholder: "eyJhbGci...",
     helpUrl: "https://app.pinata.cloud/developers/api-keys",
+    helpText: "Go to API Keys → create a new key with pinning permissions",
     enabled: true,
   },
 ];
