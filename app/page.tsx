@@ -501,7 +501,9 @@ function Results({
             <div className="pin-item" key={`${p.cid}-${i}`}>
               <span className="pin-name">{p.name}</span>
               <span className="pin-type">{p.type}</span>
-              <span className="badge fail">Failed - {p.error}</span>
+              <span className="badge fail">
+                Failed - {typeof p.error === "string" ? p.error : "Unknown error"}
+              </span>
             </div>
           ))}
         </div>

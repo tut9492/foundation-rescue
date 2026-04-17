@@ -170,11 +170,17 @@ async function pinCID(cid: string, name: string, pinataJwt: string) {
       body: JSON.stringify({ cid, name }),
     });
     const json = await res.json();
-    return res.ok
-      ? { ok: true, cid, status: json.data?.status ?? "queued" }
-      : { ok: false, cid, error: json.error ?? res.status };
+    if (res.ok) {
+      return { ok: true, cid, status: json.data?.status ?? "queued" };
+    }
+    // Pinata error can be a string, object, or number — always coerce to string
+    const errMsg =
+      typeof json.error === "string"
+        ? json.error
+        : json.error?.message ?? json.message ?? `HTTP ${res.status}`;
+    return { ok: false, cid, error: String(errMsg) };
   } catch (e: any) {
-    return { ok: false, cid, error: e.message };
+    return { ok: false, cid, error: String(e.message) };
   }
 }
 
