@@ -2,7 +2,7 @@
 
 Fuck it. We no longer need Foundation.
 
-This is a free tool for every artist affected by the shutdown. Paste your wallet, see exactly what you created and what you collected — no signature required.
+This is a free tool for every artist affected by the shutdown. Paste your wallet or contract address, see exactly what you created and what you collected — no signature required.
 
 Everything is open source. Fork it, build on it, make it yours.
 
@@ -10,11 +10,11 @@ Everything is open source. Fork it, build on it, make it yours.
 
 ## What's in this repo
 
-**Foundation Rescue** (`/`) — the tool that got us here. Paste a wallet, pin your IPFS content to your own Pinata account, get the calldata to unlist anything stuck in Foundation's marketplace contract.
+**Foundation Rescue** (`/`) — the tool that got us here. Paste a wallet or a contract address, find your Foundation NFTs, pin your IPFS content to your own Pinata account, get the calldata to unlist anything stuck in Foundation's marketplace contract.
+
+**Profile** (`/profile`) — connect your wallet, see your Foundation art with ENS identity resolution. The beginning of your decentralized artist page.
 
 **Underpin** (`/underpin`) — the vision. A decentralized, open-source marketplace. No company behind it. Fork it. Run it. Own it.
-
-**Profile** (`/profile`) — the beginning of Underpin. Connect your wallet, see your art, build your own mint page. Phase 1: wallet + display. What comes next is what the community builds.
 
 **CLI** (`rescue.mjs`) — the command-line version of the rescue tool, unchanged.
 
@@ -67,20 +67,34 @@ npx vercel --prod  # redeploy with env vars
 
 **95,297 Foundation collection contracts** — enumerated directly from Foundation's Factory V1 and V2 creation events on-chain via Etherscan. A complete, verifiable, permanent list.
 
-For any wallet:
+### Rescue (wallet mode)
 
 1. `getContractsForOwner` — gets every unique contract address in the wallet (lightweight, no NFT data)
 2. Set lookup against 95k Foundation contracts — instant, definitive
 3. `getContractMetadata` on Foundation contracts only — determines which you created vs collected via `contractDeployer`
 4. `getNFTsForOwner` with only Foundation contracts — targeted fetch, full metadata
 
+### Rescue (contract mode)
+
+1. `getNFTsForContract` — fetches all tokens in the contract (no wallet needed)
+2. Full metadata, IPFS detection, marketplace lock checks
+
 No blind scanning. Works for any wallet size.
+
+### Profile
+
+1. ENS identity resolution — resolves name + avatar via RPC
+2. Same Foundation contract set lookup as rescue
+3. Full NFT metadata for gallery display
 
 **API: `POST /api/rescue`**
 
 ```jsonc
-// Request
+// Request (wallet mode)
 { "wallet": "0x...", "pinataJwt": "optional", "createdOnly": false }
+
+// Request (contract mode)
+{ "contractAddress": "0x..." }
 
 // Response
 {
@@ -112,14 +126,19 @@ foundation-rescue/
     layout.tsx                  # Root layout + providers
     providers.tsx               # wagmi + RainbowKit + react-query
     globals.css                 # All three design systems
-    page.tsx                    # Rescue tool
+    page.tsx                    # Rescue tool (wallet + contract scan)
     underpin/page.tsx           # Underpin vision page
-    profile/page.tsx            # Artist profile (Phase 1: connect + display)
+    profile/page.tsx            # Artist profile (ENS + gallery)
     api/
-      rescue/route.ts           # API route (migrated from api/rescue.js)
+      rescue/route.ts           # Rescue API (wallet + contract modes)
+      profile/route.ts          # Profile API (Alchemy + ENS)
   components/
     TutLogo.tsx                 # Shared "Built by Tut" badge
   lib/
+    abi.ts                      # Foundation contract ABIs (typed for viem)
+    addresses.ts                # Foundation contract addresses
+    ipfs.ts                     # CID extraction + gateway resolution
+    onchain-discovery.ts        # On-chain token discovery via RPC events
     wagmi.ts                    # wagmi + RainbowKit config
     types.ts                    # Shared API response types
   foundation-contracts-list.json  # 95k Foundation contract addresses
@@ -136,6 +155,12 @@ foundation-rescue/
 Next.js 15 (App Router) · TypeScript · wagmi v2 · RainbowKit · viem · React Query · Tailwind-free (scoped CSS)
 
 No CSS framework. The rescue tool is brutalist (light, thick borders, color-coded). Underpin and the profile page are editorial (dark, thin lines, monochrome). Deliberate.
+
+---
+
+## Acknowledgments
+
+On-chain discovery layer (`lib/abi.ts`, `lib/addresses.ts`, `lib/ipfs.ts`, `lib/onchain-discovery.ts`) adapted from [ripe0x/pin](https://github.com/ripe0x/pin) by [@ripe0x](https://github.com/ripe0x) — a tool for discovering Foundation artists and preserving their work on IPFS. MIT licensed.
 
 ---
 
