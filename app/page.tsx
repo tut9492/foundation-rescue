@@ -172,7 +172,12 @@ export default function RescuePage() {
     <div className="rescue-page">
       <div className="container">
         <header>
-          <h1>Foundation Rescue</h1>
+          <div className="header-row">
+            <h1>Foundation Rescue</h1>
+            <Link href="/underpin" className="header-link">
+              Underpin →
+            </Link>
+          </div>
           <p>
             Foundation has shut down. Your token contracts are on-chain and
             safe - but the art and metadata living on IPFS could disappear when

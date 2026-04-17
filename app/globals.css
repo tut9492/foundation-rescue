@@ -37,6 +37,28 @@ a { color: inherit; text-decoration: none; }
   margin-bottom: 48px;
 }
 
+.rescue-page .header-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.rescue-page .header-link {
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  white-space: nowrap;
+  border-bottom: 2px solid #000;
+  padding-bottom: 2px;
+  transition: opacity 0.15s;
+}
+
+.rescue-page .header-link:hover {
+  opacity: 0.5;
+}
+
 .rescue-page header h1 {
   font-size: clamp(28px, 5vw, 52px);
   font-weight: 900;
