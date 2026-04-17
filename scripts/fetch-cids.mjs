@@ -9,7 +9,7 @@ import { writeFileSync, existsSync } from "fs";
 import { join } from "path";
 
 const URL =
-  "https://raw.githubusercontent.com/networked-art/foundation-ipfs-cids/main/token_cids.csv";
+  "https://raw.githubusercontent.com/networked-art/foundation-ipfs-cids/master/token_cids.csv";
 const OUT = join(process.cwd(), "token-cids.csv");
 
 if (existsSync(OUT)) {
@@ -21,8 +21,8 @@ console.log("[fetch-cids] Downloading Foundation IPFS CIDs dataset...");
 
 const res = await fetch(URL);
 if (!res.ok) {
-  console.error(`[fetch-cids] Failed to download: ${res.status}`);
-  process.exit(1);
+  console.warn(`[fetch-cids] Failed to download: ${res.status} — CID lookups will be disabled`);
+  process.exit(0);
 }
 
 const text = await res.text();
