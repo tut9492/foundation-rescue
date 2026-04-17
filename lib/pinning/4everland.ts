@@ -1,6 +1,7 @@
 import type { PinningProvider, PinResult } from "./types";
 
-const API_BASE = "https://api.4everland.dev/pinning";
+// 4EVERLAND uses the standard IPFS Pinning Services API
+const API_BASE = "https://api.4everland.dev";
 
 export function create4EverLandProvider(apiKey: string): PinningProvider {
   const headers = {
@@ -15,16 +16,13 @@ export function create4EverLandProvider(apiKey: string): PinningProvider {
 
     async pinByCid(cid: string, name: string): Promise<PinResult> {
       try {
-        const res = await fetch(`${API_BASE}/pinByHash`, {
+        const res = await fetch(`${API_BASE}/pins`, {
           method: "POST",
           headers,
-          body: JSON.stringify({
-            hashToPin: cid,
-            pinataMetadata: { name },
-          }),
+          body: JSON.stringify({ cid, name }),
         });
 
-        if (res.ok) {
+        if (res.ok || res.status === 202) {
           return { cid, name, type: "metadata", status: "queued" };
         }
 
@@ -37,7 +35,7 @@ export function create4EverLandProvider(apiKey: string): PinningProvider {
         const errMsg =
           typeof json.error === "string"
             ? json.error
-            : json.message ?? `HTTP ${res.status}`;
+            : json.reason ?? json.message ?? `HTTP ${res.status}`;
         return {
           cid,
           name,
@@ -58,7 +56,7 @@ export function create4EverLandProvider(apiKey: string): PinningProvider {
 
     async validateKey(): Promise<boolean> {
       try {
-        const res = await fetch(`${API_BASE}/pinList?pageLimit=1`, {
+        const res = await fetch(`${API_BASE}/pins?limit=1`, {
           headers: { Authorization: `Bearer ${apiKey}` },
         });
         return res.ok;
