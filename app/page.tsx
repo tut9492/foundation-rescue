@@ -1,22 +1,33 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import type { RescueResponse, NftCard } from "@/lib/types";
 import { TutLogo } from "@/components/TutLogo";
+import {
+  PROVIDERS,
+  createProvider,
+  getSavedProvider,
+  saveProvider,
+  type PinResult as ClientPinResult,
+} from "@/lib/pinning";
+import { extractCid } from "@/lib/ipfs";
 
 type StatusKind = "" | "error" | "done";
 
 export default function RescuePage() {
   const [wallet, setWallet] = useState("");
   const [contractInput, setContractInput] = useState("");
-  const [pinata, setPinata] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [selectedProvider, setSelectedProvider] = useState("4everland");
   const [customContract, setCustomContract] = useState("");
   const [lastWallet, setLastWallet] = useState<string | null>(null);
   const [lastContract, setLastContract] = useState<string | null>(null);
 
   const [scanning, setScanning] = useState(false);
   const [pinning, setPinning] = useState(false);
+  const [pinProgress, setPinProgress] = useState({ done: 0, total: 0 });
+  const [pinResults, setPinResults] = useState<ClientPinResult[]>([]);
 
   const [statusMsg, setStatusMsg] = useState("");
   const [statusKind, setStatusKind] = useState<StatusKind>("");
@@ -26,6 +37,15 @@ export default function RescuePage() {
   const [showPinCard, setShowPinCard] = useState(false);
   const [showMissingCard, setShowMissingCard] = useState(false);
   const [showUnderpinCta, setShowUnderpinCta] = useState(false);
+
+  // Restore saved provider on mount
+  useEffect(() => {
+    const saved = getSavedProvider();
+    if (saved) {
+      setSelectedProvider(saved.id);
+      setApiKey(saved.key);
+    }
+  }, []);
 
   const showStatus = (msg: string, kind: StatusKind = "") => {
     setStatusMsg(msg);
@@ -107,28 +127,70 @@ export default function RescuePage() {
   }
 
   async function runPin() {
-    const jwt = pinata.trim();
-    if (!jwt) return showStatus("Enter your Pinata JWT first", "error");
-    if (!lastWallet && !lastContract) return showStatus("Run a scan first", "error");
+    const key = apiKey.trim();
+    if (!key) return showStatus("Enter your API key first", "error");
+    if (!data) return showStatus("Run a scan first", "error");
+
+    const provider = createProvider(selectedProvider, key);
+
+    // Validate key before starting
+    showStatus("Validating API key...");
+    const valid = await provider.validateKey();
+    if (!valid) {
+      return showStatus("Invalid API key. Check your key and try again.", "error");
+    }
+
+    // Save provider for next time
+    saveProvider(selectedProvider, key);
+
+    // Collect all CIDs to pin
+    const toPinList: { cid: string; name: string; type: "metadata" | "image" }[] = [];
+    for (const nft of data.nftCards) {
+      if (!nft.hasIpfs) continue;
+      // We need the raw token data to extract CIDs — re-extract from image URLs
+      // The NFT cards don't store CIDs directly, so we check the image URL
+      if (nft.imageUrl) {
+        const cid = extractCid(nft.imageUrl);
+        if (cid) toPinList.push({ cid, name: `${nft.name} - image`, type: "image" });
+      }
+    }
+
+    if (toPinList.length === 0) {
+      return showStatus("No IPFS CIDs found to pin", "error");
+    }
 
     setPinning(true);
-    showStatus(
-      "Pinning your IPFS content to Pinata - this may take 30-60 seconds...",
-    );
-    try {
-      const body: Record<string, unknown> = { pinataJwt: jwt };
-      if (lastWallet) body.wallet = lastWallet;
-      else body.contractAddress = lastContract;
-      const json = await callRescue(body);
-      if (!json) return;
-      showStatus("Done - content pinned to your Pinata account", "done");
-      setData(json);
-      setShowPinCard(false);
-    } catch (e: any) {
-      showStatus("Network error - " + e.message, "error");
-    } finally {
-      setPinning(false);
+    setPinResults([]);
+    setPinProgress({ done: 0, total: toPinList.length });
+    showStatus(`Pinning ${toPinList.length} CIDs to ${provider.name}...`);
+
+    const results: ClientPinResult[] = [];
+    for (let i = 0; i < toPinList.length; i++) {
+      const item = toPinList[i];
+      const result = await provider.pinByCid(item.cid, item.name);
+      result.type = item.type;
+      results.push(result);
+      setPinProgress({ done: i + 1, total: toPinList.length });
+      setPinResults([...results]);
+      // Rate limit: 350ms between requests
+      if (i < toPinList.length - 1) {
+        await new Promise((r) => setTimeout(r, 350));
+      }
     }
+
+    const pinned = results.filter((r) => r.status === "pinned" || r.status === "queued");
+    const failed = results.filter((r) => r.status === "failed");
+
+    if (failed.length === 0) {
+      showStatus(`All ${pinned.length} CIDs pinned to ${provider.name}`, "done");
+    } else if (pinned.length > 0) {
+      showStatus(`${pinned.length} pinned, ${failed.length} failed`, "error");
+    } else {
+      showStatus(`All ${failed.length} pins failed — check your API key and plan`, "error");
+    }
+
+    setShowPinCard(false);
+    setPinning(false);
   }
 
   async function runCustomScan() {
@@ -182,7 +244,7 @@ export default function RescuePage() {
             Foundation has shut down. Your token contracts are on-chain and
             safe - but the art and metadata living on IPFS could disappear when
             Foundation stops pinning it. This tool pins your content to your
-            own Pinata account and shows you how to retrieve any NFTs locked in
+            own IPFS provider and shows you how to retrieve any NFTs locked in
             the Foundation marketplace contract.
           </p>
         </header>
@@ -246,39 +308,76 @@ export default function RescuePage() {
 
         {showPinCard && (
           <div className="card">
-            <h2>Step 2 - Pin to Pinata (Optional)</h2>
-            <p
-              style={{
-                fontSize: 13,
-                marginBottom: 18,
-                lineHeight: 1.5,
-              }}
-            >
-              Your IPFS content will disappear when Foundation stops pinning in
-              ~1 year. Pin it to your own Pinata account to preserve it
-              permanently.
+            <h2>Step 2 - Preserve on IPFS</h2>
+            <p className="pin-desc">
+              Your IPFS content will disappear when Foundation stops pinning.
+              Choose a provider and pin it to your own account. Your API key
+              stays in your browser — it never touches our server.
             </p>
-            <label htmlFor="pinata">Pinata JWT</label>
+
+            <div className="provider-select">
+              {PROVIDERS.filter((p) => p.enabled).map((p) => (
+                <label
+                  key={p.id}
+                  className={`provider-option ${selectedProvider === p.id ? "selected" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    name="provider"
+                    value={p.id}
+                    checked={selectedProvider === p.id}
+                    onChange={() => setSelectedProvider(p.id)}
+                  />
+                  <div>
+                    <strong>{p.name}</strong>
+                    <span>{p.description}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <label htmlFor="apiKey">
+              {PROVIDERS.find((p) => p.id === selectedProvider)?.name} API Key
+            </label>
             <input
               type="password"
-              id="pinata"
-              placeholder="eyJhbGci..."
+              id="apiKey"
+              placeholder={
+                PROVIDERS.find((p) => p.id === selectedProvider)?.placeholder
+              }
               spellCheck={false}
-              value={pinata}
-              onChange={(e) => setPinata(e.target.value)}
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
               onKeyDown={(e) => handleKeyDown(e, runPin)}
             />
             <p className="hint">
-              Get a free JWT at{" "}
+              Get a key at{" "}
               <a
-                href="https://app.pinata.cloud/developers/api-keys"
+                href={
+                  PROVIDERS.find((p) => p.id === selectedProvider)?.helpUrl
+                }
                 target="_blank"
                 rel="noopener"
               >
-                pinata.cloud → API Keys
+                {PROVIDERS.find((p) => p.id === selectedProvider)?.name} →
+                Dashboard
               </a>
-              . Pinned to your account - we never store your key.
             </p>
+
+            {pinning && pinProgress.total > 0 && (
+              <div className="pin-progress">
+                <div
+                  className="pin-progress-bar"
+                  style={{
+                    width: `${(pinProgress.done / pinProgress.total) * 100}%`,
+                  }}
+                />
+                <span className="pin-progress-text">
+                  {pinProgress.done} / {pinProgress.total}
+                </span>
+              </div>
+            )}
+
             <button
               className="primary"
               onClick={runPin}
@@ -287,10 +386,10 @@ export default function RescuePage() {
               {pinning ? (
                 <>
                   <span className="loader" />
-                  Pinning...
+                  Pinning {pinProgress.done}/{pinProgress.total}...
                 </>
               ) : (
-                "Pin My NFTs to Pinata"
+                "Pin My IPFS Content"
               )}
             </button>
           </div>
@@ -338,7 +437,7 @@ export default function RescuePage() {
           </div>
         )}
 
-        {data && <Results data={data} onCopy={copyCalldata} />}
+        {data && <Results data={data} onCopy={copyCalldata} pinResults={pinResults} />}
 
         {showUnderpinCta && (
           <div className="underpin-cta">
@@ -373,12 +472,18 @@ export default function RescuePage() {
 function Results({
   data,
   onCopy,
+  pinResults,
 }: {
   data: RescueResponse;
   onCopy: (text: string) => void;
+  pinResults: ClientPinResult[];
 }) {
   const created = data.nftCards.filter((n) => n.isCreated);
   const collected = data.nftCards.filter((n) => !n.isCreated);
+  const clientPinned = pinResults.filter(
+    (r) => r.status === "pinned" || r.status === "queued",
+  );
+  const clientFailed = pinResults.filter((r) => r.status === "failed");
 
   return (
     <div>
@@ -400,13 +505,15 @@ function Results({
             <div className="label">Collected</div>
           </div>
         )}
-        <div className="stat good">
-          <div className="num">{data.pinned.length}</div>
-          <div className="label">CIDs Pinned</div>
-        </div>
-        {data.failed.length > 0 && (
+        {clientPinned.length > 0 && (
+          <div className="stat good">
+            <div className="num">{clientPinned.length}</div>
+            <div className="label">CIDs Pinned</div>
+          </div>
+        )}
+        {clientFailed.length > 0 && (
           <div className="stat alert">
-            <div className="num">{data.failed.length}</div>
+            <div className="num">{clientFailed.length}</div>
             <div className="label">Pin Failures</div>
           </div>
         )}
@@ -478,41 +585,33 @@ function Results({
         </div>
       )}
 
-      {/* Pinned */}
-      {data.pinned.length > 0 ? (
+      {/* Client-side pin results */}
+      {clientPinned.length > 0 && (
         <div className="card">
-          <h2>Pinned to Your Pinata</h2>
-          {data.pinned.map((p, i) => (
+          <h2>Pinned Successfully</h2>
+          {clientPinned.map((p, i) => (
             <div className="pin-item" key={`${p.cid}-${i}`}>
               <span className="pin-name">{p.name}</span>
               <span className="pin-type">{p.type}</span>
               <span className="badge ok">{p.status}</span>
             </div>
           ))}
-          <br />
-          <a
-            className="etherscan-link"
-            href="https://app.pinata.cloud/files"
-            target="_blank"
-            rel="noopener"
-          >
-            → View all pinned files on Pinata
-          </a>
         </div>
-      ) : data.failed.length > 0 ? (
+      )}
+      {clientFailed.length > 0 && (
         <div className="card">
           <h2>Pin Failures</h2>
-          {data.failed.map((p, i) => (
+          {clientFailed.map((p, i) => (
             <div className="pin-item" key={`${p.cid}-${i}`}>
               <span className="pin-name">{p.name}</span>
               <span className="pin-type">{p.type}</span>
               <span className="badge fail">
-                Failed - {typeof p.error === "string" ? p.error : "Unknown error"}
+                Failed - {p.error ?? "Unknown error"}
               </span>
             </div>
           ))}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

@@ -143,6 +143,83 @@ a { color: inherit; text-decoration: none; }
   letter-spacing: 2px;
 }
 
+.rescue-page .pin-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.rescue-page .provider-select {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.rescue-page .provider-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border: var(--border);
+  padding: 14px 16px;
+  cursor: pointer;
+  background: var(--bg);
+  transition: background 0.1s;
+}
+
+.rescue-page .provider-option.selected {
+  border-color: #000;
+  background: var(--white);
+  outline: 2px solid #000;
+  outline-offset: -2px;
+}
+
+.rescue-page .provider-option input[type="radio"] {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.rescue-page .provider-option strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+
+.rescue-page .provider-option span {
+  font-size: 11px;
+  color: #666;
+  line-height: 1.4;
+}
+
+.rescue-page .pin-progress {
+  position: relative;
+  height: 28px;
+  border: var(--border);
+  margin-bottom: 16px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.rescue-page .pin-progress-bar {
+  height: 100%;
+  background: var(--green);
+  transition: width 0.3s;
+}
+
+.rescue-page .pin-progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
 .rescue-page .hint {
   font-size: 11px;
   color: #555;
@@ -1079,4 +1156,211 @@ a { color: inherit; text-decoration: none; }
   padding: 16px 20px;
   font-size: 13px;
   margin: 20px 0;
+}
+
+/* -------------------------------------------------------------------------
+ * Artist page (dark / editorial, public, server-rendered)
+ * ------------------------------------------------------------------------- */
+.artist-page {
+  --bg: #0a0a0a;
+  --white: #f0f0f0;
+  --dim: #555;
+  --border: 1px solid #222;
+
+  background: var(--bg);
+  color: var(--white);
+  min-height: 100vh;
+}
+
+.artist-page .artist-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 40px;
+  border-bottom: var(--border);
+}
+
+.artist-page .nav-logo {
+  font-size: 15px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.artist-page .nav-links {
+  display: flex;
+  gap: 24px;
+}
+
+.artist-page .nav-links a {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--dim);
+  transition: color 0.15s;
+}
+
+.artist-page .nav-links a:hover { color: var(--white); }
+
+.artist-page .artist-body {
+  padding: 60px 40px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.artist-page .artist-header {
+  margin-bottom: 48px;
+}
+
+.artist-page .artist-identity {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.artist-page .artist-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: var(--border);
+  flex-shrink: 0;
+}
+
+.artist-page .artist-header h1 {
+  font-size: clamp(28px, 5vw, 56px);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+
+.artist-page .artist-address {
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--dim);
+  margin-top: 8px;
+}
+
+.artist-page .artist-stats {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--dim);
+}
+
+.artist-page .artist-stats strong {
+  color: var(--white);
+  font-size: 20px;
+  margin-right: 4px;
+}
+
+.artist-page .artist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1px;
+  background: #222;
+  border: 1px solid #222;
+}
+
+.artist-page .artist-card {
+  background: var(--bg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.artist-page .artist-media {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+  background: #111;
+}
+
+.artist-page .artist-placeholder {
+  aspect-ratio: 1;
+  background: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--dim);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+
+.artist-page .artist-meta {
+  padding: 14px 16px;
+  border-top: var(--border);
+}
+
+.artist-page .artist-name {
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+
+.artist-page .artist-collection {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--dim);
+}
+
+.artist-page .artist-empty {
+  padding: 120px 0;
+  text-align: center;
+}
+
+.artist-page .artist-empty h1 {
+  font-size: 28px;
+  font-weight: 900;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.artist-page .artist-empty p {
+  font-size: 13px;
+  color: var(--dim);
+  margin-bottom: 32px;
+}
+
+.artist-page .artist-btn {
+  display: inline-block;
+  border: 1px solid var(--white);
+  color: var(--white);
+  padding: 14px 28px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.artist-page .artist-btn:hover {
+  background: var(--white);
+  color: var(--bg);
+}
+
+.artist-page .tut-logo { color: #555; }
+.artist-page .tut-logo img { filter: invert(1) brightness(0.4); }
+
+@media (max-width: 600px) {
+  .artist-page .artist-nav { padding: 16px 20px; }
+  .artist-page .artist-body { padding: 30px 20px; }
+  .artist-page .artist-identity { flex-direction: column; gap: 16px; }
+  .artist-page .artist-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
 }
