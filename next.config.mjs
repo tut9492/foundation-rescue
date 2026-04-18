@@ -6,6 +6,11 @@ const nextConfig = {
     // Safe because these are <img> tags on a read-only gallery.
     unoptimized: true,
   },
+  // Ensure data files created by prebuild are included in serverless output
+  outputFileTracingIncludes: {
+    "/api/**": ["./token-cids.csv", "./foundation-contracts-list.json"],
+    "/artist/**": ["./token-cids.csv", "./foundation-contracts-list.json"],
+  },
   webpack: (config) => {
     // wagmi + walletconnect expect some Node shims in the browser bundle.
     config.resolve.fallback = {
