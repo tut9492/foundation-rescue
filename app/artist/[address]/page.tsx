@@ -56,20 +56,46 @@ async function fetchArtistNfts(wallet: string) {
   const ALCHEMY_KEY = process.env.ALCHEMY_KEY;
   if (!ALCHEMY_KEY) return [];
 
-  const NFT_API_BASE = `https://eth-mainnet.g.alchemy.com/nft/v3/${ALCHEMY_KEY}`;
-
   // Load Foundation contract set
   const { getFoundationSet } = await import("@/lib/foundation-set");
-  const { fetchWithRetry, getWalletContractAddresses, fetchNFTsForContracts } =
-    await import("@/lib/alchemy");
+  const {
+    getWalletContractAddresses,
+    fetchNFTsForContracts,
+    fetchNFTMetadataBatch,
+  } = await import("@/lib/alchemy");
+  const { getTokensByCreator } = await import("@/lib/cid-lookup");
 
+  // 1. Tokens the wallet currently owns on Foundation contracts
   const allAddresses = await getWalletContractAddresses(wallet);
   const foundationSet = getFoundationSet();
   const foundationAddresses = allAddresses.filter((a) =>
     foundationSet.has(a.toLowerCase()),
   );
 
-  return fetchNFTsForContracts(wallet, foundationAddresses);
+  const ownedNfts = await fetchNFTsForContracts(wallet, foundationAddresses);
+
+  // 2. Tokens this wallet CREATED (from the 343k CID dataset) — may no
+  //    longer own them. Fetch metadata for any not already in results.
+  const createdTokens = getTokensByCreator(wallet);
+  if (createdTokens.length === 0) return ownedNfts;
+
+  const ownedKeys = new Set(
+    ownedNfts.map(
+      (n: any) => `${n.contract.address.toLowerCase()}:${n.tokenId}`,
+    ),
+  );
+
+  const missing = createdTokens.filter(
+    (t) => !ownedKeys.has(`${t.collection.toLowerCase()}:${t.tokenId}`),
+  );
+
+  if (missing.length === 0) return ownedNfts;
+
+  const fetched = await fetchNFTMetadataBatch(
+    missing.map((t) => ({ contract: t.collection, tokenId: t.tokenId })),
+  );
+
+  return [...ownedNfts, ...fetched];
 }
 
 export async function generateMetadata({

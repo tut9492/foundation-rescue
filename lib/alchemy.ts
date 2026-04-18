@@ -117,6 +117,38 @@ export async function fetchNFTsForContracts(
 }
 
 /**
+ * Fetch metadata for specific tokens by contract + tokenId.
+ * Does NOT require ownership — works for any token on-chain.
+ */
+export async function fetchNFTMetadataBatch(
+  tokens: { contract: string; tokenId: string }[],
+): Promise<any[]> {
+  if (tokens.length === 0) return [];
+  const base = getNftApiBase();
+  const nfts: any[] = [];
+  const BATCH = 10;
+  for (let i = 0; i < tokens.length; i += BATCH) {
+    const chunk = tokens.slice(i, i + BATCH);
+    const results = await Promise.all(
+      chunk.map(async ({ contract, tokenId }) => {
+        const url = new URL(`${base}/getNFTMetadata`);
+        url.searchParams.set("contractAddress", contract);
+        url.searchParams.set("tokenId", tokenId);
+        url.searchParams.set("refreshCache", "false");
+        try {
+          return await fetchWithRetry(url.toString());
+        } catch {
+          return null;
+        }
+      }),
+    );
+    nfts.push(...results.filter(Boolean));
+    if (i + BATCH < tokens.length) await sleep(200);
+  }
+  return nfts;
+}
+
+/**
  * Fetch all NFTs in a single contract (no wallet needed).
  */
 export async function fetchNFTsForContract(

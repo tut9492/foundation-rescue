@@ -76,3 +76,31 @@ export function lookupBatch(
   const map = loadCidMap();
   return tokens.map((t) => map.get(makeKey(t.collection, t.tokenId)) ?? null);
 }
+
+// Creator-indexed cache (built lazily from CID_MAP)
+let CREATOR_MAP: Map<string, TokenCids[]> | null = null;
+
+function getCreatorMap(): Map<string, TokenCids[]> {
+  if (CREATOR_MAP) return CREATOR_MAP;
+  const cidMap = loadCidMap();
+  const creatorMap = new Map<string, TokenCids[]>();
+  for (const token of cidMap.values()) {
+    const creator = token.creator.toLowerCase();
+    if (!creator) continue;
+    let list = creatorMap.get(creator);
+    if (!list) {
+      list = [];
+      creatorMap.set(creator, list);
+    }
+    list.push(token);
+  }
+  CREATOR_MAP = creatorMap;
+  return creatorMap;
+}
+
+/**
+ * Get all tokens created by a given address (from the CID dataset).
+ */
+export function getTokensByCreator(address: string): TokenCids[] {
+  return getCreatorMap().get(address.toLowerCase()) ?? [];
+}

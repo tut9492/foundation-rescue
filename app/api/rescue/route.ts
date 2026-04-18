@@ -4,12 +4,14 @@ import { mainnet } from "viem/chains";
 import { extractCid } from "@/lib/ipfs";
 import { FOUNDATION_NFT, NFT_MARKET } from "@/lib/addresses";
 import { filterFoundationAddresses } from "@/lib/foundation-set";
+import { getTokensByCreator } from "@/lib/cid-lookup";
 import {
   getRpcUrl,
   getWalletContractAddresses,
   getContractDeployers,
   fetchNFTsForContracts,
   fetchNFTsForContract,
+  fetchNFTMetadataBatch,
   sleep,
 } from "@/lib/alchemy";
 
@@ -137,6 +139,57 @@ export async function POST(req: NextRequest) {
         wallet,
         targetContracts.map((c) => c.address),
       );
+
+      // Also find tokens this wallet CREATED on the shared contract (may no
+      // longer own them). The CID dataset has 343k tokens with creator info.
+      const createdTokens = getTokensByCreator(wallet);
+      if (createdTokens.length > 0) {
+        // Build a set of tokens we already have from the ownership query
+        const ownedKeys = new Set(
+          nfts.map(
+            (n: any) =>
+              `${n.contract.address.toLowerCase()}:${n.tokenId}`,
+          ),
+        );
+
+        // Filter to tokens not already in results
+        const missing = createdTokens.filter(
+          (t) => !ownedKeys.has(`${t.collection.toLowerCase()}:${t.tokenId}`),
+        );
+
+        if (missing.length > 0) {
+          const fetched = await fetchNFTMetadataBatch(
+            missing.map((t) => ({ contract: t.collection, tokenId: t.tokenId })),
+          );
+
+          // Normalize shape to match getNFTsForOwner output and add to results
+          for (const nft of fetched) {
+            // Mark as created via a synthetic contract wrapper if needed
+            const addr = (
+              nft.contract?.address || nft.contractAddress || ""
+            ).toLowerCase();
+            if (
+              !foundationContracts.some(
+                (c) => c.address.toLowerCase() === addr,
+              )
+            ) {
+              foundationContracts.push({ address: addr, created: true });
+              createdCount++;
+            } else {
+              // Ensure existing entry is marked as created
+              const existing = foundationContracts.find(
+                (c) => c.address.toLowerCase() === addr,
+              );
+              if (existing && !existing.created) {
+                existing.created = true;
+                createdCount++;
+                collectedCount--;
+              }
+            }
+            nfts.push(nft);
+          }
+        }
+      }
     }
 
     const pinned: any[] = [];
