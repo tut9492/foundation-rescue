@@ -29,8 +29,7 @@ yarn-error.log*
 # vercel
 .vercel
 
-# large data files (fetched separately)
-token-cids.csv
+# large data files — token-cids.csv committed directly (Foundation is shut down, data is static)
 
 # typescript
 *.tsbuildinfo
